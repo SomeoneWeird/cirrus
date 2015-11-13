@@ -130,11 +130,10 @@ function listStacks() {
     for(let i = 0; i < stacks.length; i++) {
       let stack  = stacks[i];
       let status = stack.StackStatus;
-      let last;
+      let last = stack.LastUpdatedTime;
       switch(stack.StackStatus) {
         case "UPDATE_COMPLETE": {
           status = "Updated";
-          last   = stack.LastUpdatedTime;
           break;
         }
         case "CREATE_COMPLETE": {
@@ -145,6 +144,10 @@ function listStacks() {
         case "DELETE_COMPLETE": {
           status = "Deleted";
           last   = stack.DeletionTime;
+          break;
+        }
+        case "UPDATE_ROLLBACK_COMPLETE": {
+          status = "Successfully rolled back";
           break;
         }
       }
