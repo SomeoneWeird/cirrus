@@ -1,5 +1,7 @@
 #!/usr/bin/env node
 
+import "colors";
+
 import path   from "path";
 import fs     from "fs";
 import AWS    from "aws-sdk";
@@ -14,6 +16,7 @@ const argv = yargs
               .command('info', 'Returns information about the stack')
               .command('account', 'Returns information about your AWS account')
               .command('estimate', 'Returns monthly cost estimate of stack')
+              .command('validate', 'Validates a template')
               .describe('region', 'Set region')
               .describe('showdeleted', 'Show deleted stacks')
               .describe('file', 'Template file')
@@ -32,7 +35,8 @@ let commands = {
   list:     listStacks,
   info:     stackInfo,
   account:  accountInfo,
-  estimate: estimateCost
+  estimate: estimateCost,
+  validate: validateTemplate
 }
 
 if(!~Object.keys(commands).indexOf(cmd)) {
@@ -66,14 +70,14 @@ function fetchStacks(callback) {
   fetchStack();
 }
 
-function getTemplate() {
+function getTemplate(ignoreParams) {
 
   if(!argv.file) {
     console.error("Please pass '--file <filename>'");
     process.exit(1);
   }
 
-  if(!argv.parameters) {
+  if(!argv.parameters && ignoreParams !== true) {
     console.error("Please pass '--parameters <parameters file>'");
     process.exit(1);
   }
@@ -81,17 +85,24 @@ function getTemplate() {
   let file, params;
 
   try {
-    file   = JSON.parse(fs.readFileSync(path.resolve(__dirname, argv.file)).toString());
-    params = JSON.parse(fs.readFileSync(path.resolve(__dirname, argv.parameters)).toString());
+    file = JSON.parse(fs.readFileSync(path.resolve(__dirname, argv.file)).toString());
+    if(ignoreParams !== true) {
+      params = JSON.parse(fs.readFileSync(path.resolve(__dirname, argv.parameters)).toString());
+    }
   } catch(e) {
     console.error(`There was an error loading your template/params file: ${e}`);
     process.exit(1);
   }
 
-  return {
-    file,
-    params
-  };
+  let o = {
+    file
+  }
+
+  if(ignoreParams !== true) {
+    o.params = params;
+  }
+
+  return o;
 
 }
 
@@ -238,6 +249,28 @@ function estimateCost() {
     }
 
     open(response.Url);
+
+  });
+
+}
+
+function validateTemplate() {
+
+  const template = getTemplate(true);
+
+  cloudformation.validateTemplate({
+    TemplateBody: JSON.stringify(template.file)
+  }, function(err, response) {
+
+    if(err) {
+      if(err.code !== 'ValidationError')
+        throw new Error(err);
+      console.error(`Error: ${err.toString()}`);
+      console.error(' ✖  Template failed to validate'.red);
+      process.exit(1);
+    }
+
+    console.log(" ✓  Template validated successfully".green);
 
   });
 
