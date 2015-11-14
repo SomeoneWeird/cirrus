@@ -14,8 +14,8 @@ import columnify from "columnify";
 const argv = yargs
               .usage('Usage: $0 <command>')
               .command('list', 'List all non-deleted stacks')
-              .command('getresources', 'Returns resources for a stack')
-              .command('getevents', 'Returns events for a stack')
+              .command('resources', 'Returns resources for a stack')
+              .command('events', 'Returns events for a stack')
               .command('account', 'Returns information about your AWS account')
               .command('estimate', 'Returns monthly cost estimate of stack')
               .command('validate', 'Validates a template')
@@ -37,12 +37,12 @@ const argv = yargs
 let cmd = argv._[0];
 
 let commands = {
-  list:         listStacks,
-  getresources: getResources,
-  getevents:    getEvents,
-  account:      accountInfo,
-  estimate:     estimateCost,
-  validate:     validateTemplate
+  list:      listStacks,
+  resources: getResources,
+  events:    getEvents,
+  account:   accountInfo,
+  estimate:  estimateCost,
+  validate:  validateTemplate
 }
 
 if(!~Object.keys(commands).indexOf(cmd)) {
@@ -179,7 +179,7 @@ function getResources() {
   const stackName = argv._[1];
 
   if(!stackName) {
-    console.error("cirrus getresources <stackname>");
+    console.error("cirrus resources <stackname>");
     process.exit(1);
   }
 
@@ -231,7 +231,7 @@ function getEvents() {
   const stackName = argv._[1];
 
   if(!stackName) {
-    console.error("cirrus getresources <stackname>");
+    console.error("cirrus events <stackname>");
     process.exit(1);
   }
 
