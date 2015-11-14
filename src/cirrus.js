@@ -52,10 +52,12 @@ if(!~Object.keys(commands).indexOf(cmd)) {
 
 if(argv.after) {
   argv.after = new Date(argv.after);
+  if(argv.after.toString() == 'Invalid Date') delete argv.after;
 }
 
 if(argv.before) {
   argv.before = new Date(argv.before);
+  if(argv.before.toString() == 'Invalid Date') delete argv.before;
 }
 
 if(argv.limit) {
