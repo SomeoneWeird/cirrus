@@ -13,7 +13,7 @@ import open   from "open";
 const argv = yargs
               .usage('Usage: $0 <command>')
               .command('list', 'List all non-deleted stacks')
-              .command('info', 'Returns information about the stack')
+              .command('getresources', 'Returns resources for a stack')
               .command('account', 'Returns information about your AWS account')
               .command('estimate', 'Returns monthly cost estimate of stack')
               .command('validate', 'Validates a template')
@@ -32,11 +32,11 @@ const argv = yargs
 let cmd = argv._[0];
 
 let commands = {
-  list:     listStacks,
-  info:     stackInfo,
-  account:  accountInfo,
-  estimate: estimateCost,
-  validate: validateTemplate
+  list:         listStacks,
+  getresources: getResources,
+  account:      accountInfo,
+  estimate:     estimateCost,
+  validate:     validateTemplate
 }
 
 if(!~Object.keys(commands).indexOf(cmd)) {
@@ -155,12 +155,12 @@ function listStacks() {
 
 }
 
-function stackInfo() {
+function getResources() {
 
   const stackName = argv._[1];
 
   if(!stackName) {
-    console.error("cirrus info <stackname>");
+    console.error("cirrus getresources <stackname>");
     process.exit(1);
   }
 
