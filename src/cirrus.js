@@ -260,7 +260,7 @@ function getEvents() {
       } else if(~event.ResourceStatus.indexOf("FAILED")) {
         ok = '✖'.red;
       } else if(~event.ResourceStatus.indexOf("IN_PROGRESS")) {
-        ok = '*';
+        ok = '*'.yellow;
       }
 
       let out = {
