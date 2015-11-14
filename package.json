@@ -29,6 +29,7 @@
   "dependencies": {
     "aws-sdk": "^2.2.16",
     "cli-table": "^0.3.1",
+    "columnify": "^1.5.2",
     "moment": "^2.10.6",
     "open": "0.0.5",
     "yargs": "^3.29.0"

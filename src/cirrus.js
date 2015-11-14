@@ -2,18 +2,20 @@
 
 import "colors";
 
-import path   from "path";
-import fs     from "fs";
-import AWS    from "aws-sdk";
-import yargs  from "yargs";
-import Table  from "cli-table";
-import moment from "moment";
-import open   from "open";
+import path      from "path";
+import fs        from "fs";
+import AWS       from "aws-sdk";
+import yargs     from "yargs";
+import Table     from "cli-table";
+import moment    from "moment";
+import open      from "open";
+import columnify from "columnify";
 
 const argv = yargs
               .usage('Usage: $0 <command>')
               .command('list', 'List all non-deleted stacks')
               .command('getresources', 'Returns resources for a stack')
+              .command('getevents', 'Returns events for a stack')
               .command('account', 'Returns information about your AWS account')
               .command('estimate', 'Returns monthly cost estimate of stack')
               .command('validate', 'Validates a template')
@@ -21,6 +23,9 @@ const argv = yargs
               .describe('showdeleted', 'Show deleted stacks')
               .describe('file', 'Template file')
               .describe('parameters', 'Template file parameters')
+              .describe('after', 'ISO Date to limit response data')
+              .describe('before', 'ISO Date to limit response data')
+              .describe('limit', 'Limit number of responses')
               .default('region', 'ap-southeast-1')
               .default('showdeleted', false)
               .alias('file', 'f')
@@ -34,6 +39,7 @@ let cmd = argv._[0];
 let commands = {
   list:         listStacks,
   getresources: getResources,
+  getevents:    getEvents,
   account:      accountInfo,
   estimate:     estimateCost,
   validate:     validateTemplate
@@ -44,30 +50,41 @@ if(!~Object.keys(commands).indexOf(cmd)) {
   process.exit();
 }
 
+if(argv.after) {
+  argv.after = new Date(argv.after);
+}
+
+if(argv.before) {
+  argv.before = new Date(argv.before);
+}
+
+if(argv.limit) {
+  argv.limit = parseInt(argv.limit);
+  if(isNaN(argv.limit)) delete argv.limit;
+}
+
 const cloudformation = new AWS.CloudFormation({
   region: argv.region
 });
 
 commands[cmd]();
 
-function fetchStacks(callback) {
-  let stacks = [];
-  function fetchStack(NextToken) {
-    cloudformation.listStacks({
-      NextToken
-    }, function(err, response) {
+function fetchData(cmd, key, data = {}, callback) {
+  let out = [];
+  function fetch(NextToken) {
+    cloudformation[cmd](Object.assign(data, { NextToken }), function(err, response) {
       if(err) {
         return callback(err);
       }
-      stacks = stacks.concat(response.StackSummaries);
+      out = out.concat(response[key]);
       if(response.NextToken) {
-        fetchStack(response.NextToken);
+        return fetch(response.NextToken);
       } else {
-        return callback(null, stacks);
+        return callback(null, out);
       }
     });
   }
-  fetchStack();
+  fetch();
 }
 
 function getTemplate(ignoreParams) {
@@ -108,7 +125,7 @@ function getTemplate(ignoreParams) {
 
 function listStacks() {
 
-  fetchStacks(function(err, stacks) {
+  fetchData('listStacks', 'StackSummaries', {}, function(err, stacks) {
 
     if(err) {
       throw new Error(err);
@@ -202,6 +219,72 @@ function getResources() {
       console.log(table.toString());
 
     });
+
+  });
+
+}
+
+function getEvents() {
+
+  const stackName = argv._[1];
+
+  if(!stackName) {
+    console.error("cirrus getresources <stackname>");
+    process.exit(1);
+  }
+
+  fetchData('describeStackEvents', 'StackEvents', {
+    StackName: stackName
+  }, function(err, events) {
+
+    if(err) {
+      throw new Error(err);
+    }
+
+    if(argv.after) {
+      events = events.filter(event => event.Timestamp >= argv.after);
+    }
+
+    if(argv.before) {
+      events = events.filter(event => event.Timestamp <= after.before);
+    }
+
+    events = events.sort((a, b) => a.Timestamp - b.Timestamp);
+
+    events = events.map(function(event) {
+
+      let ok = '?';
+
+      if(~event.ResourceStatus.indexOf("COMPLETE")) {
+        ok = '✓'.green;
+      } else if(~event.ResourceStatus.indexOf("FAILED")) {
+        ok = '✖'.red;
+      } else if(~event.ResourceStatus.indexOf("IN_PROGRESS")) {
+        ok = '*';
+      }
+
+      let out = {
+        ts: `[${event.Timestamp}]`,
+        ok,
+        id: event.LogicalResourceId,
+        status: `- ${event.ResourceStatus}`
+      }
+
+      if(event.ResourceStatusReason) {
+        out.reason = ` (${event.ResourceStatusReason})`;
+      }
+
+      return out;
+
+    });
+
+    if(argv.limit) {
+      events = events.slice(events.length - argv.limit, events.length);
+    }
+
+    console.log(columnify(events, {
+      showHeaders: false
+    }))
 
   });
 
