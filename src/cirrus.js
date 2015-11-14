@@ -133,21 +133,14 @@ function listStacks() {
       let last = stack.LastUpdatedTime;
       switch(stack.StackStatus) {
         case "UPDATE_COMPLETE": {
-          status = "Updated";
           break;
         }
         case "CREATE_COMPLETE": {
-          status = "Created";
-          last   = stack.CreationTime;
+          last = stack.CreationTime;
           break;
         }
         case "DELETE_COMPLETE": {
-          status = "Deleted";
-          last   = stack.DeletionTime;
-          break;
-        }
-        case "UPDATE_ROLLBACK_COMPLETE": {
-          status = "Successfully rolled back";
+          last = stack.DeletionTime;
           break;
         }
       }
