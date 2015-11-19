@@ -10,6 +10,7 @@ import Table     from "cli-table";
 import moment    from "moment";
 import open      from "open";
 import columnify from "columnify";
+import inquirer  from "inquirer";
 
 const argv = yargs
               .usage('Usage: $0 <command>')
@@ -19,6 +20,9 @@ const argv = yargs
               .command('account', 'Returns information about your AWS account')
               .command('estimate', 'Returns monthly cost estimate of stack')
               .command('validate', 'Validates a template')
+              .command('create', 'Creates a stack')
+              .command('update', 'Updates a stack')
+              .command('delete', 'Deletes a stack')
               .describe('region', 'Set region')
               .describe('showdeleted', 'Show deleted stacks')
               .describe('file', 'Template file')
@@ -42,7 +46,10 @@ let commands = {
   events:    getEvents,
   account:   accountInfo,
   estimate:  estimateCost,
-  validate:  validateTemplate
+  validate:  validateTemplate,
+  create:    createStack,
+  update:    updateStack,
+  delete:    deleteStack
 }
 
 if(!~Object.keys(commands).indexOf(cmd)) {
@@ -226,6 +233,35 @@ function getResources() {
 
 }
 
+function fetchEvents(StackName, callback, opts = {}) {
+
+  fetchData('describeStackEvents', 'StackEvents', {
+    StackName
+  }, function(err, events) {
+
+    if(err) {
+      return callback(err);
+    }
+
+    let after  = argv.after || opts.after;
+    let before = argv.before || opts.before;
+
+    if(after) {
+      events = events.filter(event => event.Timestamp >= after);
+    }
+
+    if(before) {
+      events = events.filter(event => event.Timestamp <= before);
+    }
+
+    events = events.sort((a, b) => a.Timestamp - b.Timestamp);
+
+    return callback(null, events);
+
+  });
+
+}
+
 function getEvents() {
 
   const stackName = argv._[1];
@@ -235,58 +271,13 @@ function getEvents() {
     process.exit(1);
   }
 
-  fetchData('describeStackEvents', 'StackEvents', {
-    StackName: stackName
-  }, function(err, events) {
+  fetchEvents(stackName, function(err, events) {
 
     if(err) {
       throw new Error(err);
     }
 
-    if(argv.after) {
-      events = events.filter(event => event.Timestamp >= argv.after);
-    }
-
-    if(argv.before) {
-      events = events.filter(event => event.Timestamp <= after.before);
-    }
-
-    events = events.sort((a, b) => a.Timestamp - b.Timestamp);
-
-    events = events.map(function(event) {
-
-      let ok = '?';
-
-      if(~event.ResourceStatus.indexOf("COMPLETE")) {
-        ok = '✓'.green;
-      } else if(~event.ResourceStatus.indexOf("FAILED")) {
-        ok = '✖'.red;
-      } else if(~event.ResourceStatus.indexOf("IN_PROGRESS")) {
-        ok = '*'.yellow;
-      }
-
-      let out = {
-        ts: `[${event.Timestamp}]`,
-        ok,
-        id: event.LogicalResourceId,
-        status: `- ${event.ResourceStatus}`
-      }
-
-      if(event.ResourceStatusReason) {
-        out.reason = ` (${event.ResourceStatusReason})`;
-      }
-
-      return out;
-
-    });
-
-    if(argv.limit) {
-      events = events.slice(events.length - argv.limit, events.length);
-    }
-
-    console.log(columnify(events, {
-      showHeaders: false
-    }))
+    logEvents(events);
 
   });
 
@@ -354,5 +345,229 @@ function validateTemplate() {
     console.log(" ✓  Template validated successfully".green);
 
   });
+
+}
+
+function deleteStack() {
+
+  const stackName = argv._[1];
+
+  inquirer.prompt([
+    {
+      type: "confirm",
+      name: "ok",
+      message: `Are you sure you want to delete ${stackName}?`
+    }
+  ], function(answers) {
+
+    if(!answers.ok) {
+      return process.exit();
+    }
+
+    const beforeDeleteDate = new Date();
+
+    cloudformation.deleteStack({
+      StackName: stackName
+    }, function(err, response) {
+
+      if(err) {
+        if(~err.toString().indexOf("does not exist")) {
+          console.error(`${stackName} does not exist in ${argv.region}`);
+          process.exit(1);
+        }
+        throw new Error(err);
+      }
+
+      pollEvents(stackName, [
+        [ 'LogicalResourceId', stackName ],
+        [ 'ResourceStatus', 'DELETE_COMPLETE' ]
+      ], function(err) {
+
+        if(err) {
+          if(err.code !== 'ValidationError')
+            throw new Error(err);
+          process.exit();
+        }
+
+      }, beforeDeleteDate);
+
+    });
+
+  });
+
+}
+
+function createStack() {
+
+  const template = getTemplate();
+
+  const stackName = argv._[1];
+
+  if(!stackName) {
+    console.error("cirrus create <stackname> --file <file> --parameters <file>");
+    process.exit(1);
+  }
+
+  const beforeCreateDate = new Date();
+
+  cloudformation.createStack({
+    StackName:    stackName,
+    Parameters:   template.params,
+    TemplateBody: JSON.stringify(template.file)
+  }, function(err, response) {
+
+    if(err) {
+      throw new Error(err);
+    }
+
+    pollEvents(stackName, [
+      [ 'LogicalResourceId', stackName ],
+      [ 'ResourceStatus', 'CREATE_COMPLETE' ]
+    ], function(err) {
+
+      if(err) {
+        throw err;
+      }
+
+      process.exit();
+
+    }, beforeCreateDate);
+
+  });
+
+}
+
+function updateStack() {
+
+  const template = getTemplate();
+
+  const stackName = argv._[1];
+
+  if(!stackName) {
+    console.error("cirrus update <stackname> --file <file> --parameters <file>");
+    process.exit(1);
+  }
+
+  const beforeUpdateDate = new Date();
+
+  cloudformation.updateStack({
+    StackName:    stackName,
+    Parameters:   template.params,
+    TemplateBody: JSON.stringify(template.file)
+  }, function(err, response) {
+
+    if(err) {
+      if(~err.toString().indexOf('No updates')) {
+        console.log(` ${'✓'.green}  No changes`);
+        process.exit();
+      }
+      if(~err.toString().indexOf('IN_PROGRESS')) {
+        console.log(` ${'!'.yellow} Stack is in the middle of another update. Use 'cirrus events ${stackName}' to see events.`);
+        process.exit();
+      }
+      throw new Error(err);
+    }
+
+    pollEvents(stackName, [
+      [ 'LogicalResourceId', stackName ],
+      [ 'ResourceStatus', 'UPDATE_COMPLETE' ]
+    ], function(err) {
+
+      if(err) {
+        throw err;
+      }
+
+      process.exit();
+
+    }, beforeUpdateDate);
+
+  });
+
+}
+
+function logEvents(events) {
+
+  events = events.map(function(event) {
+
+    let ok = '?';
+
+    if(~event.ResourceStatus.indexOf("COMPLETE")) {
+      ok = '✓'.green;
+    } else if(~event.ResourceStatus.indexOf("FAILED")) {
+      ok = '✖'.red;
+    } else if(~event.ResourceStatus.indexOf("IN_PROGRESS")) {
+      ok = '*'.yellow;
+    }
+
+    let out = {
+      ts: `[${event.Timestamp}]`,
+      ok,
+      id: event.LogicalResourceId,
+      status: `- ${event.ResourceStatus}`
+    }
+
+    if(event.ResourceStatusReason) {
+      out.reason = ` (${event.ResourceStatusReason})`;
+    }
+
+    return out;
+
+  });
+
+  if(argv.limit) {
+    events = events.slice(events.length - argv.limit, events.length);
+  }
+
+  console.log(columnify(events, {
+    showHeaders: false
+  }));
+
+}
+
+function pollEvents(stackName, matches, callback, startDate) {
+
+  function checkEvents(lastDate) {
+
+    const now = new Date();
+
+    fetchEvents(stackName, function(err, events) {
+
+      if(err) {
+        return callback(err);
+      }
+
+      if(lastDate) {
+        events = events.filter(event => event.Timestamp > lastDate);
+      }
+
+      if(!events.length) {
+        return next();
+      }
+
+      logEvents(events);
+
+      for(let i = 0; i < events.length; i++) {
+        if(matches.every(function(match) {
+          return events[i][match[0]] === match[1];
+        })) {
+          return callback();
+        }
+      }
+
+      return next();
+
+      function next() {
+
+        setTimeout(() => {
+          checkEvents(now);
+        }, 1000);
+
+      }
+
+    });
+
+  }
+
+  checkEvents(startDate);
 
 }
