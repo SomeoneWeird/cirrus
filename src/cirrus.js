@@ -11,6 +11,7 @@ import moment    from "moment";
 import open      from "open";
 import columnify from "columnify";
 import inquirer  from "inquirer";
+import spinner   from "io-spin";
 
 const argv = yargs
               .usage('Usage: $0 <command>')
@@ -52,7 +53,9 @@ let commands = {
   delete:    deleteStack
 }
 
-if(!~Object.keys(commands).indexOf(cmd)) {
+const command = commands[cmd];
+
+if(!command) {
   yargs.showHelp();
   process.exit();
 }
@@ -76,7 +79,7 @@ const cloudformation = new AWS.CloudFormation({
   region: argv.region
 });
 
-commands[cmd]();
+command();
 
 function fetchData(cmd, key, data = {}, callback) {
   let out = [];
@@ -96,7 +99,7 @@ function fetchData(cmd, key, data = {}, callback) {
   fetch();
 }
 
-function getTemplate(ignoreParams) {
+function getTemplate(callback, ignoreParams) {
 
   if(!argv.file) {
     console.error("Please pass '--file <filename>'");
@@ -120,15 +123,7 @@ function getTemplate(ignoreParams) {
     process.exit(1);
   }
 
-  let o = {
-    file
-  }
-
-  if(ignoreParams !== true) {
-    o.params = params;
-  }
-
-  return o;
+  return callback(null, file, params);
 
 }
 
@@ -153,20 +148,19 @@ function listStacks() {
       head: [ 'Name', 'Status', 'Last Modified' ]
     });
 
+    const potentialTimes = [
+      'CreationTime',
+      'LastUpdatedTime',
+      'DeletionTime'
+    ];
+
     for(let i = 0; i < stacks.length; i++) {
       let stack  = stacks[i];
       let status = stack.StackStatus;
-      let last = stack.LastUpdatedTime;
-      switch(stack.StackStatus) {
-        case "UPDATE_COMPLETE": {
-          break;
-        }
-        case "CREATE_COMPLETE": {
-          last = stack.CreationTime;
-          break;
-        }
-        case "DELETE_COMPLETE": {
-          last = stack.DeletionTime;
+      let last;
+      for(var i = 0; i < potentialTimes.length; i++) {
+        if(stack[potentialTimes[i]]) {
+          last = stack[potentialTimes[i]];
           break;
         }
       }
@@ -195,10 +189,7 @@ function getResources() {
   }, function(err, response) {
 
     if(err) {
-      if(~err.toString().indexOf("does not exist")) {
-        console.error(`${stackName} does not exist in ${argv.region}`);
-        process.exit(1);
-      }
+      checkExists(stackName, err);
       throw new Error(err);
     }
 
@@ -207,6 +198,7 @@ function getResources() {
     }, function(err, response) {
 
       if(err) {
+        checkExists(stackName, err);
         throw new Error(err);
       }
 
@@ -240,6 +232,8 @@ function fetchEvents(StackName, callback, opts = {}) {
   }, function(err, events) {
 
     if(err) {
+      if(opts.ignoreMissing !== true)
+        checkExists(StackName, err);
       return callback(err);
     }
 
@@ -274,6 +268,7 @@ function getEvents() {
   fetchEvents(stackName, function(err, events) {
 
     if(err) {
+      checkExists(stackName, err);
       throw new Error(err);
     }
 
@@ -309,18 +304,24 @@ function accountInfo() {
 
 function estimateCost() {
 
-  const template = getTemplate();
-
-  cloudformation.estimateTemplateCost({
-    TemplateBody: JSON.stringify(template.file),
-    Parameters:   template.params
-  }, function(err, response) {
+  getTemplate(function(err, file, params) {
 
     if(err) {
-      throw new Error(err);
+      throw err;
     }
 
-    open(response.Url);
+    cloudformation.estimateTemplateCost({
+      TemplateBody: JSON.stringify(file),
+      Parameters:   params
+    }, function(err, response) {
+
+      if(err) {
+        throw new Error(err);
+      }
+
+      open(response.Url);
+
+    });
 
   });
 
@@ -328,23 +329,29 @@ function estimateCost() {
 
 function validateTemplate() {
 
-  const template = getTemplate(true);
-
-  cloudformation.validateTemplate({
-    TemplateBody: JSON.stringify(template.file)
-  }, function(err, response) {
+  getTemplate(function(err, file) {
 
     if(err) {
-      if(err.code !== 'ValidationError')
-        throw new Error(err);
-      console.error(`Error: ${err.toString()}`);
-      console.error(' ✖  Template failed to validate'.red);
-      process.exit(1);
+      throw err;
     }
 
-    console.log(" ✓  Template validated successfully".green);
+    cloudformation.validateTemplate({
+      TemplateBody: JSON.stringify(file)
+    }, function(err, response) {
 
-  });
+      if(err) {
+        if(err.code !== 'ValidationError')
+          throw new Error(err);
+        console.error(`Error: ${err.toString()}`);
+        console.error(' ✖  Template failed to validate'.red);
+        process.exit(1);
+      }
+
+      console.log(" ✓  Template validated successfully".green);
+
+    });
+
+  }, true);
 
 }
 
@@ -371,14 +378,10 @@ function deleteStack() {
     }, function(err, response) {
 
       if(err) {
-        if(~err.toString().indexOf("does not exist")) {
-          console.error(`${stackName} does not exist in ${argv.region}`);
-          process.exit(1);
-        }
         throw new Error(err);
       }
 
-      pollEvents(stackName, [
+      pollEvents(stackName, 'Deleting...', [
         [ 'LogicalResourceId', stackName ],
         [ 'ResourceStatus', 'DELETE_COMPLETE' ]
       ], function(err) {
@@ -389,7 +392,10 @@ function deleteStack() {
           process.exit();
         }
 
-      }, beforeDeleteDate);
+      }, {
+        lastDate:      beforeDeleteDate,
+        ignoreMissing: true
+      });
 
     });
 
@@ -399,8 +405,6 @@ function deleteStack() {
 
 function createStack() {
 
-  const template = getTemplate();
-
   const stackName = argv._[1];
 
   if(!stackName) {
@@ -408,38 +412,47 @@ function createStack() {
     process.exit(1);
   }
 
-  const beforeCreateDate = new Date();
-
-  cloudformation.createStack({
-    StackName:    stackName,
-    Parameters:   template.params,
-    TemplateBody: JSON.stringify(template.file)
-  }, function(err, response) {
+  getTemplate(function(err, file, params) {
 
     if(err) {
       throw new Error(err);
     }
 
-    pollEvents(stackName, [
-      [ 'LogicalResourceId', stackName ],
-      [ 'ResourceStatus', 'CREATE_COMPLETE' ]
-    ], function(err) {
+    const beforeCreateDate = new Date();
+
+    cloudformation.createStack({
+      StackName:    stackName,
+      Parameters:   params,
+      TemplateBody: JSON.stringify(file)
+    }, function(err, response) {
 
       if(err) {
-        throw err;
+        checkExists(stackName, err);
+        throw new Error(err);
       }
 
-      process.exit();
+      pollEvents(stackName, 'Creating...', [
+        [ 'LogicalResourceId', stackName ],
+        [ 'ResourceStatus', 'CREATE_COMPLETE' ]
+      ], function(err) {
 
-    }, beforeCreateDate);
+        if(err) {
+          throw err;
+        }
+
+        process.exit();
+
+      }, {
+        startDate: beforeCreateDate
+      });
+
+    });
 
   });
 
 }
 
 function updateStack() {
-
-  const template = getTemplate();
 
   const stackName = argv._[1];
 
@@ -448,38 +461,45 @@ function updateStack() {
     process.exit(1);
   }
 
-  const beforeUpdateDate = new Date();
+  getTemplate(function(err, file, params) {
 
-  cloudformation.updateStack({
-    StackName:    stackName,
-    Parameters:   template.params,
-    TemplateBody: JSON.stringify(template.file)
-  }, function(err, response) {
+    const beforeUpdateDate = new Date();
 
-    if(err) {
-      if(~err.toString().indexOf('No updates')) {
-        console.log(` ${'✓'.green}  No changes`);
-        process.exit();
-      }
-      if(~err.toString().indexOf('IN_PROGRESS')) {
-        console.log(` ${'!'.yellow} Stack is in the middle of another update. Use 'cirrus events ${stackName}' to see events.`);
-        process.exit();
-      }
-      throw new Error(err);
-    }
-
-    pollEvents(stackName, [
-      [ 'LogicalResourceId', stackName ],
-      [ 'ResourceStatus', 'UPDATE_COMPLETE' ]
-    ], function(err) {
+    cloudformation.updateStack({
+      StackName:    stackName,
+      Parameters:   params,
+      TemplateBody: JSON.stringify(file)
+    }, function(err, response) {
 
       if(err) {
-        throw err;
+        checkExists(stackName, err);
+        if(~err.toString().indexOf('No updates')) {
+          console.log(` ${'✓'.green}  No changes`);
+          process.exit();
+        }
+        if(~err.toString().indexOf('IN_PROGRESS')) {
+          console.log(` ${'!'.yellow} Stack is in the middle of another update. Use 'cirrus events ${stackName}' to see events.`);
+          process.exit();
+        }
+        throw new Error(err);
       }
 
-      process.exit();
+      pollEvents(stackName, 'Updating...', [
+        [ 'LogicalResourceId', stackName ],
+        [ 'ResourceStatus', 'UPDATE_COMPLETE' ]
+      ], function(err) {
 
-    }, beforeUpdateDate);
+        if(err) {
+          throw err;
+        }
+
+        process.exit();
+
+      }, {
+        startDate: beforeUpdateDate
+      });
+
+    });
 
   });
 
@@ -524,7 +544,7 @@ function logEvents(events) {
 
 }
 
-function pollEvents(stackName, matches, callback, startDate) {
+function pollEvents(stackName, actionName, matches, callback, opts = {}) {
 
   function checkEvents(lastDate) {
 
@@ -544,12 +564,19 @@ function pollEvents(stackName, matches, callback, startDate) {
         return next();
       }
 
+      spinner.destroy();
+
+      process.stdout.write('\r\x1bm')
+
       logEvents(events);
+
+      spinner.start(actionName, 'Box1');
 
       for(let i = 0; i < events.length; i++) {
         if(matches.every(function(match) {
           return events[i][match[0]] === match[1];
         })) {
+          spinner.destroy();
           return callback();
         }
       }
@@ -564,10 +591,19 @@ function pollEvents(stackName, matches, callback, startDate) {
 
       }
 
-    });
+    }, opts);
 
   }
 
-  checkEvents(startDate);
+  spinner.start(actionName, 'Box1');
 
+  checkEvents(opts.startDate);
+
+}
+
+function checkExists(stackName, err) {
+  if(err && ~err.toString().indexOf("does not exist")) {
+    console.error(`${stackName} does not exist in ${argv.region}`);
+    process.exit(1);
+  }
 }

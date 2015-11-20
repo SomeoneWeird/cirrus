@@ -31,6 +31,7 @@
     "cli-table": "^0.3.1",
     "columnify": "^1.5.2",
     "inquirer": "^0.11.0",
+    "io-spin": "^0.1.2",
     "moment": "^2.10.6",
     "open": "0.0.5",
     "yargs": "^3.29.0"
