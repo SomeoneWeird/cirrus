@@ -12,6 +12,7 @@ import open      from "open";
 import columnify from "columnify";
 import inquirer  from "inquirer";
 import spinner   from "io-spin";
+import async     from "async";
 
 const argv = yargs
               .usage('Usage: $0 <command>')
@@ -123,7 +124,78 @@ function getTemplate(callback, ignoreParams) {
     process.exit(1);
   }
 
-  return callback(null, file, params);
+  if(ignoreParams === true) {
+    return callback(null, file);
+  }
+
+  // Here we check if any parameters need replacing with their actual values
+  let neededStacks = [];
+
+  for(let i = 0; i < params.length; i++) {
+
+    let param = params[i];
+
+    let match = param.ParameterValue.match(/<<(.+)>>/);
+
+    if(!match) {
+      continue;
+    }
+
+    let stack = match[1].split('.');
+
+    if(stack.length !== 2) {
+      console.error(`${param.ParameterKey} has an invalid interpolation value of ${param.ParameterValue}. Example: <<stackName.logicalId>>`);
+      process.exit(1);
+    }
+
+    stack = stack[0];
+
+    neededStacks.push(stack);
+
+  }
+
+  async.each(neededStacks, function(stack, done) {
+
+    fetchData('listStackResources', 'StackResourceSummaries', {
+      StackName: stack
+    }, function(err, response) {
+
+      if(err) {
+        return done(err);
+      }
+
+      let stackKeys = params.map(param => {
+        let m = param.ParameterValue.match(/<<(.+).(.+)>>/);
+        if(m) return param.ParameterKey;
+        return false;
+      }).filter(Boolean);
+
+      function getPhysicalId(resourceId) {
+        for(let i = 0; i < response.length; i++) {
+          if(response[i].LogicalResourceId == resourceId) {
+            return response[i].PhysicalResourceId;
+          }
+        }
+        throw new Error(`Stack ${stack} does not contain a resource ${resourceId}`);
+      }
+
+      for(let i = 0; i < params.length; i++) {
+        if(!~stackKeys.indexOf(params[i].ParameterKey)) {
+          continue;
+        }
+        params[i].ParameterValue = getPhysicalId(params[i].ParameterValue.match(/\.(.+)>>$/)[1]);
+      }
+
+      done();
+
+    });
+
+  }, function(err) {
+    if(err) {
+      return callback(err);
+    }
+    return callback(null, file, params);
+  });
 
 }
 
