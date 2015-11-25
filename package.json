@@ -1,6 +1,6 @@
 {
   "name": "cirrus",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Cloudformation management CLI tool",
   "main": "bin/cirrus.js",
   "bin": {
