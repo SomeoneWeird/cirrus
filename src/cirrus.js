@@ -115,9 +115,9 @@ function getTemplate(callback, ignoreParams) {
   let file, params;
 
   try {
-    file = JSON.parse(fs.readFileSync(path.resolve(__dirname, argv.file)).toString());
+    file = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.file)).toString());
     if(ignoreParams !== true) {
-      params = JSON.parse(fs.readFileSync(path.resolve(__dirname, argv.parameters)).toString());
+      params = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.parameters)).toString());
     }
   } catch(e) {
     console.error(`There was an error loading your template/params file: ${e}`);
@@ -358,7 +358,7 @@ function accountInfo() {
       throw new Error(err);
     }
 
-    fetchStacks(function(err, stacks) {
+    fetchData('listStacks', 'StackSummaries', {}, function(err, stacks) {
 
       if(err) {
         throw new Error(err);
@@ -464,8 +464,10 @@ function deleteStack() {
           process.exit();
         }
 
+        process.exit();
+
       }, {
-        lastDate:      beforeDeleteDate,
+        startDate:     beforeDeleteDate,
         ignoreMissing: true
       });
 
