@@ -4,6 +4,37 @@ Cirrus is a CLI tool for managing cloudformation stacks and templates.
 
 (screencasts were done when I had terrible internet, so they're slow)
 
+## CF Parameters
+
+### Interpolation
+
+Parameter values can be interpolated from existing cloudformation stacks.
+
+Instead of having:
+
+```js
+[
+  {
+    ParameterKey: "PublicSubnet1",
+    ParameterValue: "subnet-123456"
+  }
+]
+```
+
+you could change it to
+
+```js
+[
+  {
+    ParameterKey: "PublicSubnet1",
+    ParameterValue: "<<mainVPC.PublicSubnet1>>"
+  }
+]
+```
+
+Where `mainVPC` is the name of another stack, and `PublicSubnet1` is the resource name.
+The value will be replaced with the ID of the resource you specify.
+
 ## Commands
 
 ### list
