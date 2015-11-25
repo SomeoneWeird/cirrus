@@ -129,7 +129,8 @@ function getTemplate(callback, ignoreParams) {
   }
 
   // Here we check if any parameters need replacing with their actual values
-  let neededStacks = [];
+  let neededStacks  = [];
+  let neededPrompts = [];
 
   for(let i = 0; i < params.length; i++) {
 
@@ -141,7 +142,14 @@ function getTemplate(callback, ignoreParams) {
       continue;
     }
 
-    let stack = match[1].split('.');
+    match = match[1];
+
+    if(match === 'prompt') {
+      neededPrompts.push(param.ParameterKey);
+      continue;
+    }
+
+    let stack = match.split('.');
 
     if(stack.length !== 2) {
       console.error(`${param.ParameterKey} has an invalid interpolation value of ${param.ParameterValue}. Example: <<stackName.logicalId>>`);
@@ -165,8 +173,8 @@ function getTemplate(callback, ignoreParams) {
       }
 
       let stackKeys = params.map(param => {
-        let m = param.ParameterValue.match(/<<(.+).(.+)>>/);
-        if(m) return param.ParameterKey;
+        let m = param.ParameterValue.match(/<<(.+)>>/);
+        if(m && m[1].split('.').length > 1) return param.ParameterKey;
         return false;
       }).filter(Boolean);
 
@@ -194,7 +202,27 @@ function getTemplate(callback, ignoreParams) {
     if(err) {
       return callback(err);
     }
-    return callback(null, file, params);
+    if(!neededPrompts.length) return fin();
+    inquirer.prompt(neededPrompts.map(key => {
+      return {
+        type: 'input',
+        name: key,
+        message: `What would you like ${key} to be set to?`
+      }
+    }), function(answers) {
+      for(let k in answers) {
+        for(let i = 0; i < params.length; i++) {
+          if(params[i].ParameterKey === k) {
+            params[i].ParameterValue = answers[k];
+            break;
+          }
+        }
+      }
+      fin();
+    });
+    function fin() {
+      return callback(null, file, params);
+    }
   });
 
 }

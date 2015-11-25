@@ -35,6 +35,19 @@ you could change it to
 Where `mainVPC` is the name of another stack, and `PublicSubnet1` is the resource name.
 The value will be replaced with the ID of the resource you specify.
 
+### Prompting
+
+You can prompt for a value when you run `create` or `update`.
+
+```js
+[
+  {
+    ParameterKey: "SecretParameter",
+    ParameterValue: "<<prompt>>"
+  }
+]
+```
+
 ## Commands
 
 ### list
