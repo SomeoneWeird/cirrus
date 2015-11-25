@@ -12,25 +12,25 @@ This command lists all the existing non-deleted stacks.
 
 If you pass `--showdeleted` then it will include deleted stacks.
 
-![cirrus list](http://i.imgur.com/hjEufIT.gifv)
+![cirrus list](http://i.imgur.com/hjEufIT.gif)
 
 ### resources
 
 This command lists all resources belonging to a particular stack.
 
-![cirrus resources](http://i.imgur.com/tvy9B73.gifv)
+![cirrus resources](http://i.imgur.com/tvy9B73.gif)
 
 ### events
 
 This command lists all events that have happened for a stack.
 
-![cirrus events](http://i.imgur.com/QFY9tgX.gifv)
+![cirrus events](http://i.imgur.com/QFY9tgX.gif)
 
 ### account
 
 This command gives you information about your AWS account.
 
-![cirrus accounts](http://i.imgur.com/frB6Ala.gifv)
+![cirrus accounts](http://i.imgur.com/frB6Ala.gif)
 
 ### estimate
 
@@ -46,8 +46,9 @@ Validates a template + parameter file.
 
 Requires `--file` and `--parameters`.
 
-Pass: ![cirrus validate pass](http://imgur.com/B2jiI1l.gifv)
-Fail: ![cirrus validate fail](http://imgur.com/XI987YI.gifv)
+Pass: ![cirrus validate pass](http://imgur.com/B2jiI1l.gif)
+
+Fail: ![cirrus validate fail](http://imgur.com/XI987YI.gif)
 
 ### create
 
@@ -55,7 +56,7 @@ Creates a new template.
 
 Requires a stack name, `--file`, and `--parameters`.
 
-![cirrus create](http://i.imgur.com/FZyIuIG.gifv)
+![cirrus create](http://i.imgur.com/FZyIuIG.gif)
 
 ### update
 
