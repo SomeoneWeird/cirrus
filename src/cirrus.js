@@ -100,7 +100,7 @@ function fetchData(cmd, key, data = {}, callback) {
   fetch();
 }
 
-function getTemplate(callback, ignoreParams) {
+function getParameters(callback, ignoreParams) {
 
   if(!argv.file) {
     console.error("Please pass '--file <filename>'");
@@ -404,7 +404,7 @@ function accountInfo() {
 
 function estimateCost() {
 
-  getTemplate(function(err, file, params) {
+  getParameters(function(err, file, params) {
 
     if(err) {
       throw err;
@@ -429,7 +429,7 @@ function estimateCost() {
 
 function validateTemplate() {
 
-  getTemplate(function(err, file) {
+  getParameters(function(err, file) {
 
     if(err) {
       throw err;
@@ -514,7 +514,7 @@ function createStack() {
     process.exit(1);
   }
 
-  getTemplate(function(err, file, params) {
+  getParameters(function(err, file, params) {
 
     if(err) {
       throw new Error(err);
@@ -525,6 +525,9 @@ function createStack() {
     cloudformation.createStack({
       StackName:    stackName,
       Parameters:   params,
+      Capabilities: [
+          'CAPABILITY_IAM',
+      ],
       TemplateBody: JSON.stringify(file)
     }, function(err, response) {
 
@@ -563,13 +566,16 @@ function updateStack() {
     process.exit(1);
   }
 
-  getTemplate(function(err, file, params) {
+  getParameters(function(err, file, params) {
 
     const beforeUpdateDate = new Date();
 
     cloudformation.updateStack({
       StackName:    stackName,
       Parameters:   params,
+      Capabilities: [
+          'CAPABILITY_IAM',
+      ],
       TemplateBody: JSON.stringify(file)
     }, function(err, response) {
 
