@@ -32,6 +32,8 @@ const argv = yargs
               .describe('after', 'ISO Date to limit response data')
               .describe('before', 'ISO Date to limit response data')
               .describe('limit', 'Limit number of responses')
+              .describe('capabilities', 'List of capablities')
+              .array('capabilities')
               .default('region', 'ap-southeast-1')
               .default('showdeleted', false)
               .alias('file', 'f')
@@ -112,7 +114,7 @@ function getParameters(callback, ignoreParams) {
     process.exit(1);
   }
 
-  let file, params;
+  let file, params, capabilities;
 
   try {
     file = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.file)).toString());
@@ -122,6 +124,10 @@ function getParameters(callback, ignoreParams) {
   } catch(e) {
     console.error(`There was an error loading your template/params file: ${e}`);
     process.exit(1);
+  }
+
+  if(argv.capabilities) {
+    capabilities = argv.capabilities;
   }
 
   if(ignoreParams === true) {
@@ -221,7 +227,7 @@ function getParameters(callback, ignoreParams) {
       fin();
     });
     function fin() {
-      return callback(null, file, params);
+      return callback(null, file, params, capabilities);
     }
   });
 
@@ -514,7 +520,7 @@ function createStack() {
     process.exit(1);
   }
 
-  getParameters(function(err, file, params) {
+  getParameters(function(err, file, params, capabilities) {
 
     if(err) {
       throw new Error(err);
@@ -522,14 +528,17 @@ function createStack() {
 
     const beforeCreateDate = new Date();
 
-    cloudformation.createStack({
+    let parameters = {
       StackName:    stackName,
       Parameters:   params,
-      Capabilities: [
-          'CAPABILITY_IAM',
-      ],
       TemplateBody: JSON.stringify(file)
-    }, function(err, response) {
+    };
+
+    if(capabilities) {
+      parameters.Capabilities = capabilities;
+    }
+
+    cloudformation.createStack(parameters, function(err, response) {
 
       if(err) {
         checkExists(stackName, err);
@@ -566,18 +575,21 @@ function updateStack() {
     process.exit(1);
   }
 
-  getParameters(function(err, file, params) {
+  getParameters(function(err, file, params, capabilities) {
 
     const beforeUpdateDate = new Date();
 
-    cloudformation.updateStack({
+    let parameters = {
       StackName:    stackName,
       Parameters:   params,
-      Capabilities: [
-          'CAPABILITY_IAM',
-      ],
       TemplateBody: JSON.stringify(file)
-    }, function(err, response) {
+    };
+
+    if(capabilities) {
+      parameters.Capabilities = capabilities;
+    }
+
+    cloudformation.updateStack(parameters, function(err, response) {
 
       if(err) {
         checkExists(stackName, err);
@@ -695,7 +707,7 @@ function pollEvents(stackName, actionName, matches, callback, opts = {}) {
 
         setTimeout(() => {
           checkEvents(now);
-        }, 1000);
+        }, 5000);
 
       }
 
