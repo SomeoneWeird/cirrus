@@ -135,8 +135,9 @@ function getParameters(callback, ignoreParams) {
   }
 
   // Here we check if any parameters need replacing with their actual values
-  let neededStacks  = [];
-  let neededPrompts = [];
+  let neededStacks    = [];
+  let neededPrompts   = [];
+  let neededPasswords = [];
 
   for(let i = 0; i < params.length; i++) {
 
@@ -152,6 +153,11 @@ function getParameters(callback, ignoreParams) {
 
     if(match === 'prompt') {
       neededPrompts.push(param.ParameterKey);
+      continue;
+    }
+
+    if(match === 'password') {
+      neededPasswords.push(param.ParameterKey);
       continue;
     }
 
@@ -208,14 +214,19 @@ function getParameters(callback, ignoreParams) {
     if(err) {
       return callback(err);
     }
-    if(!neededPrompts.length) return fin();
-    inquirer.prompt(neededPrompts.map(key => {
-      return {
-        type: 'input',
-        name: key,
-        message: `What would you like ${key} to be set to?`
+    if(!neededPrompts.length && !neededPasswords.length) return fin();
+    function rKey(type) {
+      return function(key) {
+        return {
+          type,
+          name: key,
+          message: `What would you like ${key} to be set to?`
+        }
       }
-    }), function(answers) {
+    }
+    let questions = neededPrompts.map(rKey('input'));
+    questions = questions.concat(neededPasswords.map(rKey('password')));
+    inquirer.prompt(questions, function(answers) {
       for(let k in answers) {
         for(let i = 0; i < params.length; i++) {
           if(params[i].ParameterKey === k) {
