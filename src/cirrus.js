@@ -25,6 +25,7 @@ const argv = yargs
               .command('create', 'Creates a stack')
               .command('update', 'Updates a stack')
               .command('delete', 'Deletes a stack')
+              .command('diff', 'Creates a changeset and shows you the difference')
               .describe('region', 'Set region')
               .describe('showdeleted', 'Show deleted stacks')
               .describe('file', 'Template file')
@@ -53,7 +54,8 @@ let commands = {
   validate:  validateTemplate,
   create:    createStack,
   update:    updateStack,
-  delete:    deleteStack
+  delete:    deleteStack,
+  diff:      diffStack
 }
 
 const command = commands[cmd];
@@ -633,6 +635,160 @@ function updateStack() {
     });
 
   });
+
+}
+
+function diffStack() {
+
+  const stackName = argv._[1];
+
+  const ChangeSetName = `${stackName}${Date.now()}`
+
+  if (!stackName) {
+    console.error("cirrus diff <stackname> --file <file> --parameters <file>");
+    process.exit(1);
+  }
+
+  getParameters(function (err, file, params, capabilities) {
+
+    if (err) {
+      throw err
+    }
+
+    spinner.start('Creating stack diff...', 'Box1')
+
+    let parameters = {
+      ChangeSetName,
+      StackName:    stackName,
+      Parameters:   params,
+      TemplateBody: JSON.stringify(file)
+    };
+
+    if(capabilities) {
+      parameters.Capabilities = capabilities;
+    }
+
+    cloudformation.createChangeSet(parameters, function (err, response) {
+
+      if (err) {
+        throw new Error(err)
+      }
+
+      async.whilst(function (response) {
+
+        if (!response) {
+          return true
+        }
+
+        // Still creating...
+        return response.Status === 'CREATE_IN_PROGRESS'
+
+      }, function (done) {
+
+        setTimeout(function () {
+
+          cloudformation.describeChangeSet({
+            ChangeSetName,
+            StackName: stackName
+          }, function (err, response) {
+
+            if (err) {
+              return done(err)
+            }
+
+            return done(null, response)
+
+          })
+
+        }, 5000)
+
+      }, function (err, response) {
+
+        if (err) {
+          throw new Error(err)
+        }
+
+        function stopSpinner () {
+          spinner.destroy()
+          process.stdout.write('\r\x1bm')
+        }
+
+        if (response.Status !== 'CREATE_COMPLETE') {
+          stopSpinner()
+          console.error('There was an error creating your stack diff.')
+          console.error('Have a look at the AWS console for more details')
+          console.error('ChangeSet Name:', ChangeSetName)
+          console.error('Error:', response.StatusReason)
+          process.exit(1)
+        }
+
+        cloudformation.deleteChangeSet({
+          ChangeSetName,
+          StackName: stackName
+        }, function (err) {
+
+          stopSpinner()
+
+          if (err) {
+            console.error('There was an error cleaning up your stack diff.')
+            console.error('You may have to delete it manually from the AWS console.')
+            console.error('Look for changeset:', ChangeSetName)
+            console.errro('AWS Returned:', err.toString())
+            process.exit(1)
+          }
+
+          let changes = {
+            Add: [],
+            Remove: [],
+            Modify: []
+          }
+
+          response.Changes.forEach(function (change) {
+            changes[change.ResourceChange.Action].push(change)
+          })
+
+          let out = []
+
+          if (!changes.Add.length && !changes.Remove.length && !changes.Modify.length) {
+            out.push('No modifications!')
+          } else {
+            out.push('Key:')
+            out.push(' + Addition'.green)
+            out.push(' - Removal'.red)
+            out.push(' * Modification'.yellow)
+            out.push(''); //hacks
+            out.push('Stack modifications:')
+          }
+
+          if (changes.Add.length) {
+            changes.Add.forEach(function (change) {
+              out.push(`  + ${change.ResourceChange.LogicalResourceId}`.green)
+            })
+          }
+
+          if (changes.Remove.length) {
+            changes.Remove.forEach(function (change) {
+              out.push(`  - ${change.ResourceChange.LogicalResourceId}`.red)
+            })
+          }
+
+          if (changes.Modify.length) {
+            changes.Modify.forEach(function (change) {
+              out.push(`  * ${change.ResourceChange.LogicalResourceId}`.yellow)
+            })
+          }
+
+          console.log(out.join('\n'))
+
+          process.exit()
+
+        })
+
+      })
+
+    })
+
+  })
 
 }
 
