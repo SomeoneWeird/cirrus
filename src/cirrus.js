@@ -737,48 +737,55 @@ function diffStack() {
             process.exit(1)
           }
 
-          let changes = {
-            Add: [],
-            Remove: [],
-            Modify: []
+          if(argv.raw) {
+            console.log(JSON.stringify(response))
+            process.exit()
           }
 
-          response.Changes.forEach(function (change) {
-            changes[change.ResourceChange.Action].push(change)
-          })
+          for (let i = 0; i < response.Changes.length; i++) {
+            let change = response.Changes[i].ResourceChange
+            let action = change.Action
 
-          let out = []
+            let colour
 
-          if (!changes.Add.length && !changes.Remove.length && !changes.Modify.length) {
-            out.push('No modifications!')
-          } else {
-            out.push('Key:')
-            out.push(' + Addition'.green)
-            out.push(' - Removal'.red)
-            out.push(' * Modification'.yellow)
-            out.push(''); //hacks
-            out.push('Stack modifications:')
+            switch (action) {
+              case "Add": {
+                colour = 'green'
+                break
+              }
+              case "Modify": {
+                colour = 'yellow'
+                break
+              }
+              case "Remove": {
+                colour = 'red'
+                break
+              }
+            }
+
+            console.log(`---- ${change.LogicalResourceId}`[colour])
+            console.log('  Action:', `${action}`[colour])
+            console.log('  Type:', change.ResourceType.substr(5).replace(/::/g, ' '))
+
+            if (change.PhysicalResourceId) {
+              console.log('  Resource ID:', change.PhysicalResourceId) 
+            }
+
+            if (action === 'Modify') {
+              let replace = change.Replacement === 'True' ? "Yes": "Maybe"
+              console.log('  Replacement:', replace)
+              console.log('  ----- Modifications')
+              let details = change.Details
+              for(let j = 0; j < details.length; j++) {
+                let detail = details[j]
+                if (detail.ChangeSource === 'ParameterReference') {
+                  continue
+                }
+                console.log(`    - ${detail.Target.Name}`)
+              }
+            }
+
           }
-
-          if (changes.Add.length) {
-            changes.Add.forEach(function (change) {
-              out.push(`  + ${change.ResourceChange.LogicalResourceId}`.green)
-            })
-          }
-
-          if (changes.Remove.length) {
-            changes.Remove.forEach(function (change) {
-              out.push(`  - ${change.ResourceChange.LogicalResourceId}`.red)
-            })
-          }
-
-          if (changes.Modify.length) {
-            changes.Modify.forEach(function (change) {
-              out.push(`  * ${change.ResourceChange.LogicalResourceId}`.yellow)
-            })
-          }
-
-          console.log(out.join('\n'))
 
           process.exit()
 
