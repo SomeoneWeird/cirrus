@@ -104,9 +104,20 @@ function fetchData (cmd, key, data = {}, callback) {
   fetch()
 }
 
+function cfParamsToObj (params) {
+  console.warn('Using the cloudformation style parameters (ParameterKey/ParameterValue) is now deprecated, please convert your params file to plain key/value object')
+  console.warn('[ { ParameterKey: "hello", ParameterValue: "world" } ] -> { hello: "world" }')
+  let out = {}
+  for (let i = 0; i < params.length; i++) {
+    let param = params[i]
+    out[param.ParameterKey] = param.ParameterValue
+  }
+  return out
+}
+
 function getParameters (callback, ignoreParams) {
   if (!argv.file) {
-    console.error('Please pass \'--file <filename>\'')
+    console.error("Please pass '--file <filename>'")
     process.exit(1)
   }
 
@@ -140,10 +151,14 @@ function getParameters (callback, ignoreParams) {
   let neededPrompts = []
   let neededPasswords = []
 
-  for (let i = 0; i < params.length; i++) {
-    let param = params[i]
+  if (Array.isArray(params)) {
+    params = cfParamsToObj(params)
+  }
 
-    let match = param.ParameterValue.match(/<<(.+)>>/)
+  for (let key in params) {
+    let value = params[key]
+
+    let match = value.match(/<<(.+)>>/)
 
     if (!match) {
       continue
@@ -152,19 +167,19 @@ function getParameters (callback, ignoreParams) {
     match = match[1]
 
     if (match === 'prompt') {
-      neededPrompts.push(param.ParameterKey)
+      neededPrompts.push(key)
       continue
     }
 
     if (match === 'password') {
-      neededPasswords.push(param.ParameterKey)
+      neededPasswords.push(key)
       continue
     }
 
     let stack = match.split('.')
 
     if (stack.length !== 2) {
-      console.error(`${param.ParameterKey} has an invalid interpolation value of ${param.ParameterValue}. Example: <<stackName.logicalId>>`)
+      console.error(`${key} has an invalid interpolation value of ${value}. Example: <<stackName.logicalId>>`)
       process.exit(1)
     }
 
@@ -181,12 +196,6 @@ function getParameters (callback, ignoreParams) {
         return done(err)
       }
 
-      let stackKeys = params.map((param) => {
-        let m = param.ParameterValue.match(/<<(.+)>>/)
-        if (m && m[1].split('.').length > 1) return param.ParameterKey
-        return false
-      }).filter(Boolean)
-
       function getPhysicalId (resourceId) {
         for (let i = 0; i < response.length; i++) {
           if (response[i].LogicalResourceId === resourceId) {
@@ -196,11 +205,12 @@ function getParameters (callback, ignoreParams) {
         throw new Error(`Stack ${stack} does not contain a resource ${resourceId}`)
       }
 
-      for (let i = 0; i < params.length; i++) {
-        if (!~stackKeys.indexOf(params[i].ParameterKey)) {
-          continue
+      for (let key in params) {
+        let value = params[key]
+        let m = value.match(/<<(.+)>>/)
+        if (m && m[1].split('.').length > 1) {
+          params[key] = getPhysicalId(value.match(/\.(.+)>>$/)[1])
         }
-        params[i].ParameterValue = getPhysicalId(params[i].ParameterValue.match(/\.(.+)>>$/)[1])
       }
 
       done()
@@ -223,9 +233,9 @@ function getParameters (callback, ignoreParams) {
     questions = questions.concat(neededPasswords.map(rKey('password')))
     inquirer.prompt(questions, function (answers) {
       for (let k in answers) {
-        for (let i = 0; i < params.length; i++) {
-          if (params[i].ParameterKey === k) {
-            params[i].ParameterValue = answers[k]
+        for (let pkey in params) {
+          if (pkey === k) {
+            params[pkey] = answers[k]
             break
           }
         }
