@@ -267,25 +267,13 @@ function listStacks() {
       head: [ 'Name', 'Status', 'Last Modified' ]
     });
 
-    const potentialTimes = [
-      'CreationTime',
-      'LastUpdatedTime',
-      'DeletionTime'
-    ];
-
     for(let i = 0; i < stacks.length; i++) {
       let stack  = stacks[i];
       let status = stack.StackStatus;
-      let last;
-      for(var i = 0; i < potentialTimes.length; i++) {
-        if(stack[potentialTimes[i]]) {
-          last = stack[potentialTimes[i]];
-          break;
-        }
-      }
+      let last = stack.CreationTime || stack.LastUpdatedTime || stack.DeletionTime
       let now = new Date();
-      let duration = moment.duration(+last - +now);
-      table.push([ stack.StackName, status, `${duration.humanize()} ago` ]);
+      let duration = last ? moment.duration(+last - +now).humanize() + ' ago' : 'Unable to determine'
+      table.push([ stack.StackName, status, duration ]);
     }
 
     console.log(table.toString());
