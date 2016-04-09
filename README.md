@@ -1,5 +1,7 @@
 # cirrus
 
+[![js-standard-style](https://img.shields.io/badge/code%20style-standard-brightgreen.svg)](http://standardjs.com/)
+
 Cirrus is a CLI tool for managing cloudformation stacks and templates.
 
 (screencasts were done when I had terrible internet, so they're slow)

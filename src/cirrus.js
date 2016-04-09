@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-import "colors";
+import 'colors'
 
-import path      from "path";
-import fs        from "fs";
-import AWS       from "aws-sdk";
-import yargs     from "yargs";
-import Table     from "cli-table";
-import moment    from "moment";
-import open      from "open";
-import columnify from "columnify";
-import inquirer  from "inquirer";
-import spinner   from "io-spin";
-import async     from "async";
+import path from 'path'
+import fs from 'fs'
+import AWS from 'aws-sdk'
+import yargs from 'yargs'
+import Table from 'cli-table'
+import moment from 'moment'
+import open from 'open'
+import columnify from 'columnify'
+import inquirer from 'inquirer'
+import spinner from 'io-spin'
+import async from 'async'
 
 const argv = yargs
               .usage('Usage: $0 <command>')
@@ -41,184 +41,177 @@ const argv = yargs
               .alias('parameters', 'params')
               .alias('parameters', 'p')
               .demand(1, '')
-              .argv;
+              .argv
 
-let cmd = argv._[0];
+let cmd = argv._[0]
 
 let commands = {
-  list:      listStacks,
+  list: listStacks,
   resources: getResources,
-  events:    getEvents,
-  account:   accountInfo,
-  estimate:  estimateCost,
-  validate:  validateTemplate,
-  create:    createStack,
-  update:    updateStack,
-  delete:    deleteStack,
-  diff:      diffStack
+  events: getEvents,
+  account: accountInfo,
+  estimate: estimateCost,
+  validate: validateTemplate,
+  create: createStack,
+  update: updateStack,
+  delete: deleteStack,
+  diff: diffStack
 }
 
-const command = commands[cmd];
+const command = commands[cmd]
 
-if(!command) {
-  yargs.showHelp();
-  process.exit();
+if (!command) {
+  yargs.showHelp()
+  process.exit()
 }
 
-if(argv.after) {
-  argv.after = new Date(argv.after);
-  if(argv.after.toString() == 'Invalid Date') delete argv.after;
+if (argv.after) {
+  argv.after = new Date(argv.after)
+  if (argv.after.toString() === 'Invalid Date') delete argv.after
 }
 
-if(argv.before) {
-  argv.before = new Date(argv.before);
-  if(argv.before.toString() == 'Invalid Date') delete argv.before;
+if (argv.before) {
+  argv.before = new Date(argv.before)
+  if (argv.before.toString() === 'Invalid Date') delete argv.before
 }
 
-if(argv.limit) {
-  argv.limit = parseInt(argv.limit);
-  if(isNaN(argv.limit)) delete argv.limit;
+if (argv.limit) {
+  argv.limit = parseInt(argv.limit)
+  if (isNaN(argv.limit)) delete argv.limit
 }
 
 const cloudformation = new AWS.CloudFormation({
   region: argv.region
-});
+})
 
-command();
+command()
 
-function fetchData(cmd, key, data = {}, callback) {
-  let out = [];
-  function fetch(NextToken) {
-    cloudformation[cmd](Object.assign(data, { NextToken }), function(err, response) {
-      if(err) {
-        return callback(err);
+function fetchData (cmd, key, data = {}, callback) {
+  let out = []
+  function fetch (NextToken) {
+    cloudformation[cmd](Object.assign(data, { NextToken }), function (err, response) {
+      if (err) {
+        return callback(err)
       }
-      out = out.concat(response[key]);
-      if(response.NextToken) {
-        return fetch(response.NextToken);
+      out = out.concat(response[key])
+      if (response.NextToken) {
+        return fetch(response.NextToken)
       } else {
-        return callback(null, out);
+        return callback(null, out)
       }
-    });
+    })
   }
-  fetch();
+  fetch()
 }
 
-function getParameters(callback, ignoreParams) {
-
-  if(!argv.file) {
-    console.error("Please pass '--file <filename>'");
-    process.exit(1);
+function getParameters (callback, ignoreParams) {
+  if (!argv.file) {
+    console.error('Please pass \'--file <filename>\'')
+    process.exit(1)
   }
 
-  if(!argv.parameters && ignoreParams !== true) {
-    console.error("Please pass '--parameters <parameters file>'");
-    process.exit(1);
+  if (!argv.parameters && ignoreParams !== true) {
+    console.error('Please pass \'--parameters <parameters file>\'')
+    process.exit(1)
   }
 
-  let file, params, capabilities;
+  let file, params, capabilities
 
   try {
-    file = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.file)).toString());
-    if(ignoreParams !== true) {
-      params = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.parameters)).toString());
+    file = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.file)).toString())
+    if (ignoreParams !== true) {
+      params = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.parameters)).toString())
     }
-  } catch(e) {
-    console.error(`There was an error loading your template/params file: ${e}`);
-    process.exit(1);
+  } catch (e) {
+    console.error(`There was an error loading your template/params file: ${e}`)
+    process.exit(1)
   }
 
-  if(argv.capabilities) {
-    capabilities = argv.capabilities;
+  if (argv.capabilities) {
+    capabilities = argv.capabilities
   }
 
-  if(ignoreParams === true) {
-    return callback(null, file);
+  if (ignoreParams === true) {
+    return callback(null, file)
   }
 
   // Here we check if any parameters need replacing with their actual values
-  let neededStacks    = [];
-  let neededPrompts   = [];
-  let neededPasswords = [];
+  let neededStacks = []
+  let neededPrompts = []
+  let neededPasswords = []
 
-  for(let i = 0; i < params.length; i++) {
+  for (let i = 0; i < params.length; i++) {
+    let param = params[i]
 
-    let param = params[i];
+    let match = param.ParameterValue.match(/<<(.+)>>/)
 
-    let match = param.ParameterValue.match(/<<(.+)>>/);
-
-    if(!match) {
-      continue;
+    if (!match) {
+      continue
     }
 
-    match = match[1];
+    match = match[1]
 
-    if(match === 'prompt') {
-      neededPrompts.push(param.ParameterKey);
-      continue;
+    if (match === 'prompt') {
+      neededPrompts.push(param.ParameterKey)
+      continue
     }
 
-    if(match === 'password') {
-      neededPasswords.push(param.ParameterKey);
-      continue;
+    if (match === 'password') {
+      neededPasswords.push(param.ParameterKey)
+      continue
     }
 
-    let stack = match.split('.');
+    let stack = match.split('.')
 
-    if(stack.length !== 2) {
-      console.error(`${param.ParameterKey} has an invalid interpolation value of ${param.ParameterValue}. Example: <<stackName.logicalId>>`);
-      process.exit(1);
+    if (stack.length !== 2) {
+      console.error(`${param.ParameterKey} has an invalid interpolation value of ${param.ParameterValue}. Example: <<stackName.logicalId>>`)
+      process.exit(1)
     }
 
-    stack = stack[0];
+    stack = stack[0]
 
-    neededStacks.push(stack);
-
+    neededStacks.push(stack)
   }
 
-  async.each(neededStacks, function(stack, done) {
-
+  async.each(neededStacks, function (stack, done) {
     fetchData('listStackResources', 'StackResourceSummaries', {
       StackName: stack
-    }, function(err, response) {
-
-      if(err) {
-        return done(err);
+    }, function (err, response) {
+      if (err) {
+        return done(err)
       }
 
-      let stackKeys = params.map(param => {
-        let m = param.ParameterValue.match(/<<(.+)>>/);
-        if(m && m[1].split('.').length > 1) return param.ParameterKey;
-        return false;
-      }).filter(Boolean);
+      let stackKeys = params.map((param) => {
+        let m = param.ParameterValue.match(/<<(.+)>>/)
+        if (m && m[1].split('.').length > 1) return param.ParameterKey
+        return false
+      }).filter(Boolean)
 
-      function getPhysicalId(resourceId) {
-        for(let i = 0; i < response.length; i++) {
-          if(response[i].LogicalResourceId == resourceId) {
-            return response[i].PhysicalResourceId;
+      function getPhysicalId (resourceId) {
+        for (let i = 0; i < response.length; i++) {
+          if (response[i].LogicalResourceId === resourceId) {
+            return response[i].PhysicalResourceId
           }
         }
-        throw new Error(`Stack ${stack} does not contain a resource ${resourceId}`);
+        throw new Error(`Stack ${stack} does not contain a resource ${resourceId}`)
       }
 
-      for(let i = 0; i < params.length; i++) {
-        if(!~stackKeys.indexOf(params[i].ParameterKey)) {
-          continue;
+      for (let i = 0; i < params.length; i++) {
+        if (!~stackKeys.indexOf(params[i].ParameterKey)) {
+          continue
         }
-        params[i].ParameterValue = getPhysicalId(params[i].ParameterValue.match(/\.(.+)>>$/)[1]);
+        params[i].ParameterValue = getPhysicalId(params[i].ParameterValue.match(/\.(.+)>>$/)[1])
       }
 
-      done();
-
-    });
-
-  }, function(err) {
-    if(err) {
-      return callback(err);
+      done()
+    })
+  }, function (err) {
+    if (err) {
+      return callback(err)
     }
-    if(!neededPrompts.length && !neededPasswords.length) return fin();
-    function rKey(type) {
-      return function(key) {
+    if (!neededPrompts.length && !neededPasswords.length) return fin()
+    function rKey (type) {
+      return function (key) {
         return {
           type,
           name: key,
@@ -226,419 +219,363 @@ function getParameters(callback, ignoreParams) {
         }
       }
     }
-    let questions = neededPrompts.map(rKey('input'));
-    questions = questions.concat(neededPasswords.map(rKey('password')));
-    inquirer.prompt(questions, function(answers) {
-      for(let k in answers) {
-        for(let i = 0; i < params.length; i++) {
-          if(params[i].ParameterKey === k) {
-            params[i].ParameterValue = answers[k];
-            break;
+    let questions = neededPrompts.map(rKey('input'))
+    questions = questions.concat(neededPasswords.map(rKey('password')))
+    inquirer.prompt(questions, function (answers) {
+      for (let k in answers) {
+        for (let i = 0; i < params.length; i++) {
+          if (params[i].ParameterKey === k) {
+            params[i].ParameterValue = answers[k]
+            break
           }
         }
       }
-      fin();
-    });
-    function fin() {
-      return callback(null, file, params, capabilities);
+      fin()
+    })
+    function fin () {
+      return callback(null, file, params, capabilities)
     }
-  });
-
+  })
 }
 
-function listStacks() {
-
-  fetchData('listStacks', 'StackSummaries', {}, function(err, stacks) {
-
-    if(err) {
-      throw new Error(err);
+function listStacks () {
+  fetchData('listStacks', 'StackSummaries', {}, function (err, stacks) {
+    if (err) {
+      throw new Error(err)
     }
 
-    if(!argv.showdeleted) {
-      stacks = stacks.filter(stack => stack.StackStatus !== 'DELETE_COMPLETE');
+    if (!argv.showdeleted) {
+      stacks = stacks.filter((stack) => stack.StackStatus !== 'DELETE_COMPLETE')
     }
 
-    if(!stacks.length) {
-      console.log(`It looks like you don't have any stacks in ${argv.region}!`);
-      process.exit();
+    if (!stacks.length) {
+      console.log(`It looks like you don't have any stacks in ${argv.region}!`)
+      process.exit()
     }
 
     const table = new Table({
       head: [ 'Name', 'Status', 'Last Modified' ]
-    });
+    })
 
-    for(let i = 0; i < stacks.length; i++) {
-      let stack  = stacks[i];
-      let status = stack.StackStatus;
+    for (let i = 0; i < stacks.length; i++) {
+      let stack = stacks[i]
+      let status = stack.StackStatus
       let last = stack.CreationTime || stack.LastUpdatedTime || stack.DeletionTime
-      let now = new Date();
+      let now = new Date()
       let duration = last ? moment.duration(+last - +now).humanize() + ' ago' : 'Unable to determine'
-      table.push([ stack.StackName, status, duration ]);
+      table.push([ stack.StackName, status, duration ])
     }
 
-    console.log(table.toString());
-
-  });
-
+    console.log(table.toString())
+  })
 }
 
-function getResources() {
+function getResources () {
+  const stackName = argv._[1]
 
-  const stackName = argv._[1];
-
-  if(!stackName) {
-    console.error("cirrus resources <stackname>");
-    process.exit(1);
+  if (!stackName) {
+    console.error('cirrus resources <stackname>')
+    process.exit(1)
   }
 
   cloudformation.describeStacks({
     StackName: stackName
-  }, function(err, response) {
-
-    if(err) {
-      checkExists(stackName, err);
-      throw new Error(err);
+  }, function (err, response) {
+    if (err) {
+      checkExists(stackName, err)
+      throw new Error(err)
     }
 
     cloudformation.listStackResources({
       StackName: stackName
-    }, function(err, response) {
-
-      if(err) {
-        checkExists(stackName, err);
-        throw new Error(err);
+    }, function (err, response) {
+      if (err) {
+        checkExists(stackName, err)
+        throw new Error(err)
       }
 
       const table = new Table({
         head: [ 'Name', 'Type', 'Last Modified' ]
-      });
+      })
 
-      for(let i = 0; i < response.StackResourceSummaries.length; i++) {
-        let resource = response.StackResourceSummaries[i];
-        let now = new Date();
-        let duration = moment.duration(+resource.LastUpdatedTimestamp - +now);
+      for (let i = 0; i < response.StackResourceSummaries.length; i++) {
+        let resource = response.StackResourceSummaries[i]
+        let now = new Date()
+        let duration = moment.duration(+resource.LastUpdatedTimestamp - +now)
         table.push([
           resource.LogicalResourceId,
           resource.ResourceType,
           `${duration.humanize()} ago`
-        ]);
+        ])
       }
 
-      console.log(table.toString());
-
-    });
-
-  });
-
+      console.log(table.toString())
+    })
+  })
 }
 
-function fetchEvents(StackName, callback, opts = {}) {
-
+function fetchEvents (StackName, callback, opts = {}) {
   fetchData('describeStackEvents', 'StackEvents', {
     StackName
-  }, function(err, events) {
-
-    if(err) {
-      if(opts.ignoreMissing !== true)
-        checkExists(StackName, err);
-      return callback(err);
+  }, function (err, events) {
+    if (err) {
+      if (opts.ignoreMissing !== true) {
+        checkExists(StackName, err)
+      }
+      return callback(err)
     }
 
-    let after  = argv.after || opts.after;
-    let before = argv.before || opts.before;
+    let after = argv.after || opts.after
+    let before = argv.before || opts.before
 
-    if(after) {
-      events = events.filter(event => event.Timestamp >= after);
+    if (after) {
+      events = events.filter((event) => event.Timestamp >= after)
     }
 
-    if(before) {
-      events = events.filter(event => event.Timestamp <= before);
+    if (before) {
+      events = events.filter((event) => event.Timestamp <= before)
     }
 
-    events = events.sort((a, b) => a.Timestamp - b.Timestamp);
+    events = events.sort((a, b) => a.Timestamp - b.Timestamp)
 
-    return callback(null, events);
-
-  });
-
+    return callback(null, events)
+  })
 }
 
-function getEvents() {
+function getEvents () {
+  const stackName = argv._[1]
 
-  const stackName = argv._[1];
-
-  if(!stackName) {
-    console.error("cirrus events <stackname>");
-    process.exit(1);
+  if (!stackName) {
+    console.error('cirrus events <stackname>')
+    process.exit(1)
   }
 
-  fetchEvents(stackName, function(err, events) {
-
-    if(err) {
-      checkExists(stackName, err);
-      throw new Error(err);
+  fetchEvents(stackName, function (err, events) {
+    if (err) {
+      checkExists(stackName, err)
+      throw new Error(err)
     }
 
-    logEvents(events);
-
-  });
-
+    logEvents(events)
+  })
 }
 
-function accountInfo() {
-
-  cloudformation.describeAccountLimits({}, function(err, response) {
-
-    if(err) {
-      throw new Error(err);
+function accountInfo () {
+  cloudformation.describeAccountLimits({}, function (err, response) {
+    if (err) {
+      throw new Error(err)
     }
 
-    fetchData('listStacks', 'StackSummaries', {}, function(err, stacks) {
-
-      if(err) {
-        throw new Error(err);
+    fetchData('listStacks', 'StackSummaries', {}, function (err, stacks) {
+      if (err) {
+        throw new Error(err)
       }
 
-      stacks = stacks.filter(stack => stack.StackStatus !== 'DELETE_COMPLETE');
+      stacks = stacks.filter((stack) => stack.StackStatus !== 'DELETE_COMPLETE')
 
-      console.log(`You have currently used ${stacks.length} out of ${response.AccountLimits[0].Value} stacks`);
-
-    });
-
-  });
-
+      console.log(`You have currently used ${stacks.length} out of ${response.AccountLimits[0].Value} stacks`)
+    })
+  })
 }
 
-function estimateCost() {
-
-  getParameters(function(err, file, params) {
-
-    if(err) {
-      throw err;
+function estimateCost () {
+  getParameters(function (err, file, params) {
+    if (err) {
+      throw err
     }
 
     cloudformation.estimateTemplateCost({
       TemplateBody: JSON.stringify(file),
-      Parameters:   params
-    }, function(err, response) {
-
-      if(err) {
-        throw new Error(err);
+      Parameters: params
+    }, function (err, response) {
+      if (err) {
+        throw new Error(err)
       }
 
-      open(response.Url);
-
-    });
-
-  });
-
+      open(response.Url)
+    })
+  })
 }
 
-function validateTemplate() {
-
-  getParameters(function(err, file) {
-
-    if(err) {
-      throw err;
+function validateTemplate () {
+  getParameters(function (err, file) {
+    if (err) {
+      throw err
     }
 
     cloudformation.validateTemplate({
       TemplateBody: JSON.stringify(file)
-    }, function(err, response) {
-
-      if(err) {
-        if(err.code !== 'ValidationError')
-          throw new Error(err);
-        console.error(`Error: ${err.toString()}`);
-        console.error(' ✖  Template failed to validate'.red);
-        process.exit(1);
+    }, function (err, response) {
+      if (err) {
+        if (err.code !== 'ValidationError') {
+          throw new Error(err)
+        }
+        console.error(`Error: ${err.toString()}`)
+        console.error(' ✖  Template failed to validate'.red)
+        process.exit(1)
       }
 
-      console.log(" ✓  Template validated successfully".green);
-
-    });
-
-  }, true);
-
+      console.log(' ✓  Template validated successfully'.green)
+    })
+  }, true)
 }
 
-function deleteStack() {
-
-  const stackName = argv._[1];
+function deleteStack () {
+  const stackName = argv._[1]
 
   inquirer.prompt([
     {
-      type: "confirm",
-      name: "ok",
+      type: 'confirm',
+      name: 'ok',
       message: `Are you sure you want to delete ${stackName}?`
     }
-  ], function(answers) {
-
-    if(!answers.ok) {
-      return process.exit();
+  ], function (answers) {
+    if (!answers.ok) {
+      return process.exit()
     }
 
-    const beforeDeleteDate = new Date();
+    const beforeDeleteDate = new Date()
 
     cloudformation.deleteStack({
       StackName: stackName
-    }, function(err, response) {
-
-      if(err) {
-        throw new Error(err);
+    }, function (err, response) {
+      if (err) {
+        throw new Error(err)
       }
 
       pollEvents(stackName, 'Deleting...', [
         [ 'LogicalResourceId', stackName ],
         [ 'ResourceStatus', 'DELETE_COMPLETE' ]
-      ], function(err) {
-
-        if(err) {
-          if(err.code !== 'ValidationError')
-            throw new Error(err);
-          process.exit();
+      ], function (err) {
+        if (err) {
+          if (err.code !== 'ValidationError') {
+            throw new Error(err)
+          }
+          process.exit()
         }
 
-        process.exit();
-
+        process.exit()
       }, {
-        startDate:     beforeDeleteDate,
+        startDate: beforeDeleteDate,
         ignoreMissing: true
-      });
-
-    });
-
-  });
-
+      })
+    })
+  })
 }
 
-function createStack() {
+function createStack () {
+  const stackName = argv._[1]
 
-  const stackName = argv._[1];
-
-  if(!stackName) {
-    console.error("cirrus create <stackname> --file <file> --parameters <file>");
-    process.exit(1);
+  if (!stackName) {
+    console.error('cirrus create <stackname> --file <file> --parameters <file>')
+    process.exit(1)
   }
 
-  getParameters(function(err, file, params, capabilities) {
-
-    if(err) {
-      throw new Error(err);
+  getParameters(function (err, file, params, capabilities) {
+    if (err) {
+      throw new Error(err)
     }
 
-    const beforeCreateDate = new Date();
+    const beforeCreateDate = new Date()
 
     let parameters = {
-      StackName:    stackName,
-      Parameters:   params,
+      StackName: stackName,
+      Parameters: params,
       TemplateBody: JSON.stringify(file)
-    };
-
-    if(capabilities) {
-      parameters.Capabilities = capabilities;
     }
 
-    cloudformation.createStack(parameters, function(err, response) {
+    if (capabilities) {
+      parameters.Capabilities = capabilities
+    }
 
-      if(err) {
-        checkExists(stackName, err);
-        throw new Error(err);
+    cloudformation.createStack(parameters, function (err, response) {
+      if (err) {
+        checkExists(stackName, err)
+        throw new Error(err)
       }
 
       pollEvents(stackName, 'Creating...', [
         [ 'LogicalResourceId', stackName ],
         [ 'ResourceStatus', 'CREATE_COMPLETE' ]
-      ], function(err) {
-
-        if(err) {
-          throw err;
+      ], function (err) {
+        if (err) {
+          throw err
         }
 
-        process.exit();
-
+        process.exit()
       }, {
         startDate: beforeCreateDate
-      });
-
-    });
-
-  });
-
+      })
+    })
+  })
 }
 
-function updateStack() {
+function updateStack () {
+  const stackName = argv._[1]
 
-  const stackName = argv._[1];
-
-  if(!stackName) {
-    console.error("cirrus update <stackname> --file <file> --parameters <file>");
-    process.exit(1);
+  if (!stackName) {
+    console.error('cirrus update <stackname> --file <file> --parameters <file>')
+    process.exit(1)
   }
 
-  getParameters(function(err, file, params, capabilities) {
-
-    const beforeUpdateDate = new Date();
-
-    let parameters = {
-      StackName:    stackName,
-      Parameters:   params,
-      TemplateBody: JSON.stringify(file)
-    };
-
-    if(capabilities) {
-      parameters.Capabilities = capabilities;
+  getParameters(function (err, file, params, capabilities) {
+    if (err) {
+      throw new Error(err)
     }
 
-    cloudformation.updateStack(parameters, function(err, response) {
+    const beforeUpdateDate = new Date()
 
-      if(err) {
-        checkExists(stackName, err);
-        if(~err.toString().indexOf('No updates')) {
-          console.log(` ${'✓'.green}  No changes`);
-          process.exit();
+    let parameters = {
+      StackName: stackName,
+      Parameters: params,
+      TemplateBody: JSON.stringify(file)
+    }
+
+    if (capabilities) {
+      parameters.Capabilities = capabilities
+    }
+
+    cloudformation.updateStack(parameters, function (err, response) {
+      if (err) {
+        checkExists(stackName, err)
+        if (~err.toString().indexOf('No updates')) {
+          console.log(` ${'✓'.green}  No changes`)
+          process.exit()
         }
-        if(~err.toString().indexOf('IN_PROGRESS')) {
-          console.log(` ${'!'.yellow} Stack is in the middle of another update. Use 'cirrus events ${stackName}' to see events.`);
-          process.exit();
+        if (~err.toString().indexOf('IN_PROGRESS')) {
+          console.log(` ${'!'.yellow} Stack is in the middle of another update. Use 'cirrus events ${stackName}' to see events.`)
+          process.exit()
         }
-        throw new Error(err);
+        throw new Error(err)
       }
 
       pollEvents(stackName, 'Updating...', [
         [ 'LogicalResourceId', stackName ],
         [ 'ResourceStatus', 'UPDATE_COMPLETE' ]
-      ], function(err) {
-
-        if(err) {
-          throw err;
+      ], function (err) {
+        if (err) {
+          throw err
         }
 
-        process.exit();
-
+        process.exit()
       }, {
         startDate: beforeUpdateDate
-      });
-
-    });
-
-  });
-
+      })
+    })
+  })
 }
 
-function diffStack() {
-
-  const stackName = argv._[1];
+function diffStack () {
+  const stackName = argv._[1]
 
   const ChangeSetName = `${stackName}${Date.now()}`
 
   if (!stackName) {
-    console.error("cirrus diff <stackname> --file <file> --parameters <file>");
-    process.exit(1);
+    console.error('cirrus diff <stackname> --file <file> --parameters <file>')
+    process.exit(1)
   }
 
   getParameters(function (err, file, params, capabilities) {
-
     if (err) {
       throw err
     }
@@ -647,51 +584,41 @@ function diffStack() {
 
     let parameters = {
       ChangeSetName,
-      StackName:    stackName,
-      Parameters:   params,
+      StackName: stackName,
+      Parameters: params,
       TemplateBody: JSON.stringify(file)
-    };
+    }
 
-    if(capabilities) {
-      parameters.Capabilities = capabilities;
+    if (capabilities) {
+      parameters.Capabilities = capabilities
     }
 
     cloudformation.createChangeSet(parameters, function (err, response) {
-
       if (err) {
         throw new Error(err)
       }
 
       async.whilst(function (response) {
-
         if (!response) {
           return true
         }
 
         // Still creating...
         return response.Status === 'CREATE_IN_PROGRESS'
-
       }, function (done) {
-
         setTimeout(function () {
-
           cloudformation.describeChangeSet({
             ChangeSetName,
             StackName: stackName
           }, function (err, response) {
-
             if (err) {
               return done(err)
             }
 
             return done(null, response)
-
           })
-
         }, 5000)
-
       }, function (err, response) {
-
         if (err) {
           throw new Error(err)
         }
@@ -714,7 +641,6 @@ function diffStack() {
           ChangeSetName,
           StackName: stackName
         }, function (err) {
-
           stopSpinner()
 
           if (err) {
@@ -725,7 +651,7 @@ function diffStack() {
             process.exit(1)
           }
 
-          if(argv.raw) {
+          if (argv.raw) {
             console.log(JSON.stringify(response))
             process.exit()
           }
@@ -737,15 +663,15 @@ function diffStack() {
             let colour
 
             switch (action) {
-              case "Add": {
+              case 'Add': {
                 colour = 'green'
                 break
               }
-              case "Modify": {
+              case 'Modify': {
                 colour = 'yellow'
                 break
               }
-              case "Remove": {
+              case 'Remove': {
                 colour = 'red'
                 break
               }
@@ -756,15 +682,15 @@ function diffStack() {
             console.log('  Type:', change.ResourceType.substr(5).replace(/::/g, ' '))
 
             if (change.PhysicalResourceId) {
-              console.log('  Resource ID:', change.PhysicalResourceId) 
+              console.log('  Resource ID:', change.PhysicalResourceId)
             }
 
             if (action === 'Modify') {
-              let replace = change.Replacement === 'True' ? "Yes": "Maybe"
+              let replace = change.Replacement === 'True' ? 'Yes' : 'Maybe'
               console.log('  Replacement:', replace)
               console.log('  ----- Modifications')
               let details = change.Details
-              for(let j = 0; j < details.length; j++) {
+              for (let j = 0; j < details.length; j++) {
                 let detail = details[j]
                 if (detail.ChangeSource === 'ParameterReference') {
                   continue
@@ -772,33 +698,25 @@ function diffStack() {
                 console.log(`    - ${detail.Target.Name}`)
               }
             }
-
           }
 
           process.exit()
-
         })
-
       })
-
     })
-
   })
-
 }
 
-function logEvents(events) {
+function logEvents (events) {
+  events = events.map(function (event) {
+    let ok = '?'
 
-  events = events.map(function(event) {
-
-    let ok = '?';
-
-    if(~event.ResourceStatus.indexOf("COMPLETE")) {
-      ok = '✓'.green;
-    } else if(~event.ResourceStatus.indexOf("FAILED")) {
-      ok = '✖'.red;
-    } else if(~event.ResourceStatus.indexOf("IN_PROGRESS")) {
-      ok = '*'.yellow;
+    if (~event.ResourceStatus.indexOf('COMPLETE')) {
+      ok = '✓'.green
+    } else if (~event.ResourceStatus.indexOf('FAILED')) {
+      ok = '✖'.red
+    } else if (~event.ResourceStatus.indexOf('IN_PROGRESS')) {
+      ok = '*'.yellow
     }
 
     let out = {
@@ -808,84 +726,74 @@ function logEvents(events) {
       status: `- ${event.ResourceStatus}`
     }
 
-    if(event.ResourceStatusReason) {
-      out.reason = ` (${event.ResourceStatusReason})`;
+    if (event.ResourceStatusReason) {
+      out.reason = ` (${event.ResourceStatusReason})`
     }
 
-    return out;
+    return out
+  })
 
-  });
-
-  if(argv.limit) {
-    events = events.slice(events.length - argv.limit, events.length);
+  if (argv.limit) {
+    events = events.slice(events.length - argv.limit, events.length)
   }
 
   console.log(columnify(events, {
     showHeaders: false
-  }));
-
+  }))
 }
 
-function pollEvents(stackName, actionName, matches, callback, opts = {}) {
+function pollEvents (stackName, actionName, matches, callback, opts = {}) {
+  function checkEvents (lastDate) {
+    const now = new Date()
 
-  function checkEvents(lastDate) {
-
-    const now = new Date();
-
-    fetchEvents(stackName, function(err, events) {
-
-      if(err) {
-        return callback(err);
+    fetchEvents(stackName, function (err, events) {
+      if (err) {
+        return callback(err)
       }
 
-      if(lastDate) {
-        events = events.filter(event => event.Timestamp > lastDate);
+      if (lastDate) {
+        events = events.filter((event) => event.Timestamp > lastDate)
       }
 
-      if(!events.length) {
-        return next();
+      if (!events.length) {
+        return next()
       }
 
-      spinner.destroy();
+      spinner.destroy()
 
       process.stdout.write('\r\x1bm')
 
-      logEvents(events);
+      logEvents(events)
 
-      spinner.start(actionName, 'Box1');
+      spinner.start(actionName, 'Box1')
 
-      for(let i = 0; i < events.length; i++) {
-        if(matches.every(function(match) {
-          return events[i][match[0]] === match[1];
+      for (let i = 0; i < events.length; i++) {
+        if (matches.every(function (match) {
+          return events[i][match[0]] === match[1]
         })) {
-          spinner.destroy();
-          return callback();
+          spinner.destroy()
+          return callback()
         }
       }
 
-      return next();
+      return next()
 
-      function next() {
-
+      function next () {
         setTimeout(() => {
-          checkEvents(now);
-        }, 5000);
-
+          checkEvents(now)
+        }, 5000)
       }
-
-    }, opts);
-
+    }, opts)
   }
 
-  spinner.start(actionName, 'Box1');
+  spinner.start(actionName, 'Box1')
 
-  checkEvents(opts.startDate);
-
+  checkEvents(opts.startDate)
 }
 
-function checkExists(stackName, err) {
-  if(err && ~err.toString().indexOf("does not exist")) {
-    console.error(`${stackName} does not exist in ${argv.region}`);
-    process.exit(1);
+function checkExists (stackName, err) {
+  if (err && ~err.toString().indexOf('does not exist')) {
+    console.error(`${stackName} does not exist in ${argv.region}`)
+    process.exit(1)
   }
 }
