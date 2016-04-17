@@ -115,3 +115,9 @@ Requires a stack name, `--file`, and `--parameters`.
 Deletes an existing stack.
 
 Will prompt for confirmation.
+
+### diff
+
+Note: This command is a WIP and the output will almost definitely change.
+
+Displays information about what will change if you apply this template to an existing stack.
