@@ -8,10 +8,22 @@ function deleteStack (cloudformation, argv, utils) {
       type: 'confirm',
       name: 'ok',
       message: `Are you sure you want to delete ${stackName}?`
+    },
+    {
+      type: 'input',
+      name: 'region',
+      message: 'Just confirming, which region did you want to delete this stack in?'
     }
   ], function (answers) {
     if (!answers.ok) {
       return process.exit()
+    }
+
+    if (answers.region !== argv.region) {
+      console.error('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'.red)
+      console.error('The region you entered was different from the one you previously selected.')
+      console.error('Aborted.')
+      process.exit(1)
     }
 
     const beforeDeleteDate = new Date()
