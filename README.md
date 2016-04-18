@@ -121,3 +121,5 @@ Will prompt for confirmation.
 Note: This command is a WIP and the output will almost definitely change.
 
 Displays information about what will change if you apply this template to an existing stack.
+
+[![asciicast](https://asciinema.org/a/1e00t3mbz4t2idozscphnqtww.png)](https://asciinema.org/a/1e00t3mbz4t2idozscphnqtww)
