@@ -102,7 +102,7 @@ Creates a new template.
 
 Requires a stack name, `--file`, and `--parameters`.
 
-![cirrus create](http://i.imgur.com/FZyIuIG.gif)
+[![asciicast](https://asciinema.org/a/9z94veo4pqftlpgtyb6iexbww.png)](https://asciinema.org/a/9z94veo4pqftlpgtyb6iexbww)
 
 ### update
 
@@ -110,11 +110,15 @@ Updates an existing template.
 
 Requires a stack name, `--file`, and `--parameters`.
 
+[![asciicast](https://asciinema.org/a/7e745ao7yz9v1kmubmf57vyfr.png)](https://asciinema.org/a/7e745ao7yz9v1kmubmf57vyfr)
+
 ### delete
 
 Deletes an existing stack.
 
 Will prompt for confirmation.
+
+[![asciicast](https://asciinema.org/a/6gauuvmjy4865mv99zm9m4tjm.png)](https://asciinema.org/a/6gauuvmjy4865mv99zm9m4tjm)
 
 ### diff
 
