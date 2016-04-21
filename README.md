@@ -6,50 +6,6 @@ Cirrus is a CLI tool for managing cloudformation stacks and templates.
 
 (screencasts were done when I had terrible internet, so they're slow)
 
-## CF Parameters
-
-### Interpolation
-
-Parameter values can be interpolated from existing cloudformation stacks.
-
-Instead of having:
-
-```js
-[
-  {
-    ParameterKey: "PublicSubnet1",
-    ParameterValue: "subnet-123456"
-  }
-]
-```
-
-you could change it to
-
-```js
-[
-  {
-    ParameterKey: "PublicSubnet1",
-    ParameterValue: "<<mainVPC.PublicSubnet1>>"
-  }
-]
-```
-
-Where `mainVPC` is the name of another stack, and `PublicSubnet1` is the resource name.
-The value will be replaced with the ID of the resource you specify.
-
-### Prompting
-
-You can prompt for a value when you run `create` or `update`.
-
-```js
-[
-  {
-    ParameterKey: "SecretParameter",
-    ParameterValue: "<<prompt>>"
-  }
-]
-```
-
 ## Commands
 
 ### list
@@ -127,3 +83,54 @@ Note: This command is a WIP and the output will almost definitely change.
 Displays information about what will change if you apply this template to an existing stack.
 
 [![asciicast](https://asciinema.org/a/1e00t3mbz4t2idozscphnqtww.png)](https://asciinema.org/a/1e00t3mbz4t2idozscphnqtww)
+
+## CF Parameters
+
+### Deprecation of cloudformation style params
+
+The old way of defining parameters is now deprecated, to be replaced with a single JSON object.
+
+Old:
+
+```js
+[ { ParameterKey: "Hello", ParameterValue: "World" } ]
+```
+
+New:
+
+```js
+{ Hello: "World" }
+```
+
+### Interpolation
+
+Parameter values can be interpolated from existing cloudformation stacks.
+
+Instead of having:
+
+```js
+{
+  PublicSubnet1: "subnet-123456"
+}
+```
+
+you could change it to
+
+```js
+{
+  PublicSubnet1: "<<mainVPC.PublicSubnet1>>"
+}
+```
+
+Where `mainVPC` is the name of another stack, and `PublicSubnet1` is the resource name.
+The value will be replaced with the ID of the resource you specify.
+
+### Prompting
+
+You can prompt for a value when you run `create` or `update`.
+
+```js
+{
+  SecretParameter: "<<prompt>>"
+}
+```
