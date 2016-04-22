@@ -39,6 +39,8 @@ function createStack (cloudformation, argv, utils) {
           throw err
         }
 
+        console.log(`${stackName} has been created!`.cyan)
+
         process.exit()
       }, {
         startDate: beforeCreateDate

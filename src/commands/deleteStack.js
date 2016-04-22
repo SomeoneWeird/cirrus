@@ -46,6 +46,8 @@ function deleteStack (cloudformation, argv, utils) {
           process.exit()
         }
 
+        console.log(`${stackName} has been deleted...`.cyan)
+
         process.exit()
       }, {
         startDate: beforeDeleteDate,
