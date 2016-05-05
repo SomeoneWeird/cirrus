@@ -134,3 +134,17 @@ You can prompt for a value when you run `create` or `update`.
   SecretParameter: "<<prompt>>"
 }
 ```
+# Building
+
+To build on your local:
+
+```
+$ git clone ...
+$ cd cirrus/
+$ sudo npm install babel-cli
+$ npm install
+$ npm run build
+$ sudo npm install -g .
+```
+Enjoy Cirrus!
+
