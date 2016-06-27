@@ -96,6 +96,10 @@ export default function (argv, cloudformation) {
     for (let key in params) {
       let value = params[key]
 
+      if (!value) {
+        continue
+      }
+
       let match = value.match(/<<(.+)>>/)
 
       if (!match) {
