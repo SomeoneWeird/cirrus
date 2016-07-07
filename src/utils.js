@@ -146,8 +146,9 @@ export default function (argv, cloudformation) {
         for (let key in params) {
           let value = params[key]
           let m = value.match(/<<(.+)>>/)
-          if (m && m[1].split('.').length > 1) {
-            params[key] = getPhysicalId(value.match(/\.(.+)>>$/)[1])
+          let pair = m ? m[1].split('.') : false
+          if (pair && pair[0] === stack) {
+            params[key] = getPhysicalId(pair[1])
           }
         }
 
