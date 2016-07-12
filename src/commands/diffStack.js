@@ -90,7 +90,7 @@ function diffStack (cloudformation, argv, utils) {
           }
 
           if (argv.raw) {
-            console.log(JSON.stringify(response))
+            console.log(JSON.stringify(response, null, 2))
             process.exit()
           }
 
@@ -124,7 +124,7 @@ function diffStack (cloudformation, argv, utils) {
             }
 
             if (action === 'Modify') {
-              let replace = change.Replacement === 'True' ? 'Yes' : 'Maybe'
+              let replace = change.Replacement
               console.log('  Replacement:', replace)
               console.log('  ----- Modifications')
               let details = change.Details
