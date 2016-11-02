@@ -96,6 +96,12 @@ export default function (argv, cloudformation) {
     for (let key in params) {
       let value = params[key]
 
+      // Exit nicely if value is not a string instead of crashing on value.match()
+      if (typeof(value) !== "string") {
+        console.error(`Invalid parameter type: ${key} value is a ${typeof(value)}. Only strings are allowed in parameters file.`)
+        process.exit(1)
+      }
+
       let match = value.match(/<<(.+)>>/)
 
       if (!match) {
