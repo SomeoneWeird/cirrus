@@ -134,3 +134,14 @@ You can prompt for a value when you run `create` or `update`.
   SecretParameter: "<<prompt>>"
 }
 ```
+
+### KMS Encrypted values
+
+You can include data that has been encrypted using [KMS](https://aws.amazon.com/kms/) for `create` or `update`.
+These values will be decrypted using the KMS API when the tasks are run. 
+
+```js
+{
+  SecretParameter: "<<kms: BASE64_ENCODED_DATA>>"
+}
+```
