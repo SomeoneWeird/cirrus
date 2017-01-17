@@ -1,4 +1,5 @@
 import fs from 'fs'
+import kms from 'kms'
 import path from 'path'
 import async from 'async'
 import inquirer from 'inquirer'
@@ -85,6 +86,7 @@ export default function (argv, cloudformation) {
     }
 
     // Here we check if any parameters need replacing with their actual values
+    let neededKms = {}
     let neededStacks = []
     let neededPrompts = []
     let neededPasswords = []
@@ -117,6 +119,13 @@ export default function (argv, cloudformation) {
 
       if (match === 'password') {
         neededPasswords.push(key)
+        continue
+      }
+
+      let kmsMatch = match.match(/kms: (.+)/)
+      if (kmsMatch) {
+        cipherText = kmsMatch[1]
+        neededKms[key] = cipherText
         continue
       }
 
@@ -164,7 +173,7 @@ export default function (argv, cloudformation) {
       if (err) {
         return callback(err)
       }
-      if (!neededPrompts.length && !neededPasswords.length) return fin()
+      if (!neededPrompts.length && !neededPasswords.length && !neededKms.length) return fin()
       function rKey (type) {
         return function (key) {
           return {
@@ -174,6 +183,15 @@ export default function (argv, cloudformation) {
           }
         }
       }
+
+      async.each(neededKms, function(pKey, cipherText, callback) {
+        let blob = Buffer.from(cipherText, 'base64')
+        kms.decrypt(blob).then(bufferData => {
+            params[pKey] = bufferData.toString('base64')
+        })
+        return callback()
+      })
+
       let questions = neededPrompts.map(rKey('input'))
       questions = questions.concat(neededPasswords.map(rKey('password')))
       inquirer.prompt(questions, function (answers) {
