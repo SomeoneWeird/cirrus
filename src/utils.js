@@ -143,7 +143,7 @@ export default function (argv, cloudformation) {
 
     async.eachOf(neededKms, function (cipherText, pKey, callback) {
       decrypt(cipherText, pKey, function (err, plainText) {
-        if (err) return callback(err);
+        if (err) return callback(err)
         params[pKey] = plainText
         callback()
       })
@@ -160,7 +160,7 @@ export default function (argv, cloudformation) {
             return done(err)
           }
 
-          function getPhysicalId(resourceId) {
+          function getPhysicalId (resourceId) {
             for (let i = 0; i < response.length; i++) {
               if (response[i].LogicalResourceId === resourceId) {
                 return response[i].PhysicalResourceId
@@ -185,11 +185,11 @@ export default function (argv, cloudformation) {
           return callback(err)
         }
         if (!neededPrompts.length && !neededPasswords.length && !neededKms.length) return fin()
-        function rKey(type) {
+        function rKey (type) {
           return function (key) {
             return {
               type,
-              name:    key,
+              name: key,
               message: `What would you like ${key} to be set to?`
             }
           }
@@ -208,14 +208,14 @@ export default function (argv, cloudformation) {
           }
           fin()
         })
-        function fin() {
+        function fin () {
           return callback(null, file, params, capabilities)
         }
       })
     })
   }
 
-  function decrypt(cipherText, key, callback) {
+  function decrypt (cipherText, key, callback) {
     let blob = Buffer.from(cipherText, 'base64')
     let kms = new AWS.KMS({region: argv.region})
     kms.decrypt({CiphertextBlob: blob}, function (err, data) {
