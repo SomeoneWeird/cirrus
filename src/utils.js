@@ -99,8 +99,8 @@ export default function (argv, cloudformation) {
       let value = params[key]
 
       // Exit nicely if value is not a string instead of crashing on value.match()
-      if (typeof(value) !== "string") {
-        console.error(`Invalid parameter type: ${key} value is a ${typeof(value)}. Only strings are allowed in parameters file.`)
+      if (typeof value !== 'string') {
+        console.error(`Invalid parameter type: ${key} value is a ${typeof value}. Only strings are allowed in parameters file.`)
         process.exit(1)
       }
 
@@ -124,7 +124,7 @@ export default function (argv, cloudformation) {
 
       let kmsMatch = match.match(/kms: (.+)/)
       if (kmsMatch) {
-        cipherText = kmsMatch[1]
+        let cipherText = kmsMatch[1]
         neededKms[key] = cipherText
         continue
       }
@@ -184,10 +184,10 @@ export default function (argv, cloudformation) {
         }
       }
 
-      async.each(neededKms, function(pKey, cipherText, callback) {
+      async.each(neededKms, function (pKey, cipherText, callback) {
         let blob = Buffer.from(cipherText, 'base64')
-        kms.decrypt(blob).then(bufferData => {
-            params[pKey] = bufferData.toString('base64')
+        kms.decrypt(blob).then((bufferData) => {
+          params[pKey] = bufferData.toString('base64')
         })
         return callback()
       })
