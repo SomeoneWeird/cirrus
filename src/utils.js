@@ -1,7 +1,7 @@
 import fs from 'fs'
-import kms from 'kms'
 import path from 'path'
 import async from 'async'
+import AWS from 'aws-sdk'
 import inquirer from 'inquirer'
 import spinner from 'io-spin'
 import columnify from 'columnify'
@@ -141,73 +141,88 @@ export default function (argv, cloudformation) {
       neededStacks.push(stack)
     }
 
-    async.each(neededStacks, function (stack, done) {
-      fetchData('listStackResources', 'StackResourceSummaries', {
-        StackName: stack
-      }, function (err, response) {
-        if (err) {
-          return done(err)
-        }
-
-        function getPhysicalId (resourceId) {
-          for (let i = 0; i < response.length; i++) {
-            if (response[i].LogicalResourceId === resourceId) {
-              return response[i].PhysicalResourceId
-            }
-          }
-          throw new Error(`Stack ${stack} does not contain a resource ${resourceId}`)
-        }
-
-        for (let key in params) {
-          let value = params[key]
-          let m = value.match(/<<(.+)>>/)
-          let pair = m ? m[1].split('.') : false
-          if (pair && pair[0] === stack) {
-            params[key] = getPhysicalId(pair[1])
-          }
-        }
-
-        done()
+    async.eachOf(neededKms, function (cipherText, pKey, callback) {
+      decrypt(cipherText, pKey, function (err, plainText) {
+        if (err) return callback(err);
+        params[pKey] = plainText
+        callback()
       })
     }, function (err) {
       if (err) {
-        return callback(err)
+        throw new Error('Could not decrypt all keys')
       }
-      if (!neededPrompts.length && !neededPasswords.length && !neededKms.length) return fin()
-      function rKey (type) {
-        return function (key) {
-          return {
-            type,
-            name: key,
-            message: `What would you like ${key} to be set to?`
+
+      async.each(neededStacks, function (stack, done) {
+        fetchData('listStackResources', 'StackResourceSummaries', {
+          StackName: stack
+        }, function (err, response) {
+          if (err) {
+            return done(err)
           }
-        }
-      }
 
-      async.each(neededKms, function (pKey, cipherText, callback) {
-        let blob = Buffer.from(cipherText, 'base64')
-        kms.decrypt(blob).then((bufferData) => {
-          params[pKey] = bufferData.toString('base64')
+          function getPhysicalId(resourceId) {
+            for (let i = 0; i < response.length; i++) {
+              if (response[i].LogicalResourceId === resourceId) {
+                return response[i].PhysicalResourceId
+              }
+            }
+            throw new Error(`Stack ${stack} does not contain a resource ${resourceId}`)
+          }
+
+          for (let key in params) {
+            let value = params[key]
+            let m = value.match(/<<(.+)>>/)
+            let pair = m ? m[1].split('.') : false
+            if (pair && pair[0] === stack) {
+              params[key] = getPhysicalId(pair[1])
+            }
+          }
+
+          done()
         })
-        return callback()
-      })
-
-      let questions = neededPrompts.map(rKey('input'))
-      questions = questions.concat(neededPasswords.map(rKey('password')))
-      inquirer.prompt(questions, function (answers) {
-        for (let k in answers) {
-          for (let pkey in params) {
-            if (pkey === k) {
-              params[pkey] = answers[k]
-              break
+      }, function (err) {
+        if (err) {
+          return callback(err)
+        }
+        if (!neededPrompts.length && !neededPasswords.length && !neededKms.length) return fin()
+        function rKey(type) {
+          return function (key) {
+            return {
+              type,
+              name:    key,
+              message: `What would you like ${key} to be set to?`
             }
           }
         }
-        fin()
+
+        let questions = neededPrompts.map(rKey('input'))
+        questions = questions.concat(neededPasswords.map(rKey('password')))
+        inquirer.prompt(questions, function (answers) {
+          for (let k in answers) {
+            for (let pkey in params) {
+              if (pkey === k) {
+                params[pkey] = answers[k]
+                break
+              }
+            }
+          }
+          fin()
+        })
+        function fin() {
+          return callback(null, file, params, capabilities)
+        }
       })
-      function fin () {
-        return callback(null, file, params, capabilities)
+    })
+  }
+
+  function decrypt(cipherText, key, callback) {
+    let blob = Buffer.from(cipherText, 'base64')
+    let kms = new AWS.KMS({region: argv.region})
+    kms.decrypt({CiphertextBlob: blob}, function (err, data) {
+      if (err) {
+        throw new Error(`Could not decrypt value for ${key}: ${err}`)
       }
+      callback(null, data.Plaintext.toString())
     })
   }
 
