@@ -72,8 +72,14 @@ Requires a stack name, `--file`, and `--parameters`.
 
 Cancels an update on the specified stack. The stack rolls back the update and reverts to the previous stack configuration.
 
-Requires a stack name, `--file`, and `--parameters`.
+Requires a stack name.
 
+Will prompt for confirmation.
+
+```
+Note
+  This will only work on a stack that are in the `UPDATE_IN_PROGRESS` state.
+```
 
 ### delete
 
