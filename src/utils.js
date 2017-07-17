@@ -5,6 +5,7 @@ import AWS from 'aws-sdk'
 import inquirer from 'inquirer'
 import spinner from 'io-spin'
 import columnify from 'columnify'
+import stripComments from 'strip-json-comments'
 
 export default function (argv, cloudformation) {
   function fetchData (cmd, key, data = {}, callback) {
@@ -66,9 +67,9 @@ export default function (argv, cloudformation) {
     let file, params, capabilities
 
     try {
-      file = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.file)).toString())
+      file = JSON.parse(stripComments(fs.readFileSync(path.resolve(process.cwd(), argv.file)).toString()))
       if (ignoreParams !== true) {
-        params = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), argv.parameters)).toString())
+        params = JSON.parse(stripComments(fs.readFileSync(path.resolve(process.cwd(), argv.parameters)).toString()))
       }
     } catch (e) {
       console.log(file)

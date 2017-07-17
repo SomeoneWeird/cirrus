@@ -4,6 +4,8 @@
 
 Cirrus is a CLI tool for managing cloudformation stacks and templates.
 
+All loaded files support JSON comments.
+
 (screencasts were done when I had terrible internet, so they're slow)
 
 ## Commands
