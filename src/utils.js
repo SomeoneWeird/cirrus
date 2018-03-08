@@ -5,6 +5,7 @@ import AWS from 'aws-sdk'
 import inquirer from 'inquirer'
 import spinner from 'io-spin'
 import columnify from 'columnify'
+import moment from 'moment'
 
 export default function (argv, cloudformation) {
   function fetchData (cmd, key, data = {}, callback) {
@@ -90,6 +91,7 @@ export default function (argv, cloudformation) {
     let neededStacks = []
     let neededPrompts = []
     let neededPasswords = []
+    let neededDateTimes = []
 
     if (Array.isArray(params)) {
       params = cfParamsToObj(params)
@@ -129,6 +131,13 @@ export default function (argv, cloudformation) {
         continue
       }
 
+      let dateTimeMatch = match.match(/currentDate: (.+)/)
+      if (dateTimeMatch) {
+        let timeFormat = dateTimeMatch[1]
+        neededDateTimes[key] = timeFormat
+        continue
+      }
+
       let stack = match.split('.')
 
       if (stack.length !== 2) {
@@ -159,6 +168,13 @@ export default function (argv, cloudformation) {
           if (err) {
             return done(err)
           }
+
+          async.each(neededDateTimes, function (format, pKey, dateDone) {
+            currentDate(format, function (formatted) {
+              params[pKey] = formatted
+              dateDone()
+            })
+          })
 
           function getPhysicalId (resourceId) {
             for (let i = 0; i < response.length; i++) {
@@ -224,6 +240,10 @@ export default function (argv, cloudformation) {
       }
       callback(null, data.Plaintext.toString())
     })
+  }
+
+  function currentDate (format, callback) {
+    callback(moment.utc().format(format))
   }
 
   function checkExists (stackName, err) {
