@@ -150,6 +150,10 @@ export default function (argv, cloudformation) {
       neededStacks.push(stack)
     }
 
+    for (const k of Object.keys(neededDateTimes)) {
+      params[k] = moment.utc().format(neededDateTimes[k])
+    }
+
     async.eachOf(neededKms, function (cipherText, pKey, callback) {
       decrypt(cipherText, pKey, function (err, plainText) {
         if (err) return callback(err)
@@ -168,13 +172,6 @@ export default function (argv, cloudformation) {
           if (err) {
             return done(err)
           }
-
-          async.each(neededDateTimes, function (format, pKey, dateDone) {
-            currentDate(format, function (formatted) {
-              params[pKey] = formatted
-              dateDone()
-            })
-          })
 
           function getPhysicalId (resourceId) {
             for (let i = 0; i < response.length; i++) {
@@ -240,10 +237,6 @@ export default function (argv, cloudformation) {
       }
       callback(null, data.Plaintext.toString())
     })
-  }
-
-  function currentDate (format, callback) {
-    callback(moment.utc().format(format))
   }
 
   function checkExists (stackName, err) {
