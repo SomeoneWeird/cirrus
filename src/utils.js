@@ -5,6 +5,7 @@ import AWS from 'aws-sdk'
 import inquirer from 'inquirer'
 import spinner from 'io-spin'
 import columnify from 'columnify'
+import moment from 'moment'
 
 export default function (argv, cloudformation) {
   function fetchData (cmd, key, data = {}, callback) {
@@ -90,6 +91,7 @@ export default function (argv, cloudformation) {
     let neededStacks = []
     let neededPrompts = []
     let neededPasswords = []
+    let neededDateTimes = []
 
     if (Array.isArray(params)) {
       params = cfParamsToObj(params)
@@ -129,6 +131,13 @@ export default function (argv, cloudformation) {
         continue
       }
 
+      let dateTimeMatch = match.match(/currentDate: (.+)/)
+      if (dateTimeMatch) {
+        let timeFormat = dateTimeMatch[1]
+        neededDateTimes[key] = timeFormat
+        continue
+      }
+
       let stack = match.split('.')
 
       if (stack.length !== 2) {
@@ -139,6 +148,10 @@ export default function (argv, cloudformation) {
       stack = stack[0]
 
       neededStacks.push(stack)
+    }
+
+    for (const k of Object.keys(neededDateTimes)) {
+      params[k] = moment.utc().format(neededDateTimes[k])
     }
 
     async.eachOf(neededKms, function (cipherText, pKey, callback) {
