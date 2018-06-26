@@ -68,6 +68,19 @@ Requires a stack name, `--file`, and `--parameters`.
 
 [![asciicast](https://asciinema.org/a/7e745ao7yz9v1kmubmf57vyfr.png)](https://asciinema.org/a/7e745ao7yz9v1kmubmf57vyfr)
 
+### cancel
+
+Cancels an update on the specified stack. The stack rolls back the update and reverts to the previous stack configuration.
+
+Requires a stack name.
+
+Will prompt for confirmation.
+
+```
+Note
+  This will only work on a stack that are in the `UPDATE_IN_PROGRESS` state.
+```
+
 ### delete
 
 Deletes an existing stack.
