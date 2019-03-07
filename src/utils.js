@@ -310,6 +310,18 @@ export default function (argv, cloudformation) {
   }
 
   function pollEvents (stackName, actionName, matches, callback, opts = {}) {
+    const failureMatches = [
+      [ 'LogicalResourceId', stackName ],
+      [ 'ResourceStatus', 'ROLLBACK_COMPLETE' ]
+    ]
+    const failureCallback = function (err) {
+      if (err) {
+        throw err
+      }
+      console.log(`${stackName} failed!`.red)
+      process.exit()
+    }
+
     function checkEvents (lastDate) {
       const now = new Date()
 
@@ -341,7 +353,15 @@ export default function (argv, cloudformation) {
             spinner.destroy()
             return callback()
           }
+          if (failureMatches.every(function (match) {
+            return events[i][match[0]] === match[1]
+          })) {
+            spinner.destroy()
+            return failureCallback()
+          }
         }
+
+
 
         return next()
 
